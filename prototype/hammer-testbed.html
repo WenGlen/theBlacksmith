@@ -1,0 +1,1175 @@
+<title>揮錘測試台</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+
+<style>
+/* 第一人稱鍛造視角：鐵砧固定，鐵柱沿右上左下的對角線擺。單一暗色主題（鍛造間昏暗才判得準色溫） */
+:root{
+  color-scheme: dark;
+  --bg:#16110f;
+  --panel:#1f1917;
+  --panel-2:#261f1c;
+  --line:#372d28;
+  --fg:#e9ddd3;
+  --muted:#9b8b7f;
+  --ember:#d9742b;
+  --ok:#7aa05e;
+  --warn:#d9a22b;
+  --bad:#c4503e;
+  --sans:'Noto Sans TC','PingFang TC','Microsoft JhengHei',sans-serif;
+  --mono:'JetBrains Mono','SFMono-Regular',Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--bg);color:var(--fg);font-family:var(--sans);
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:20px 48px;margin:0;line-height:1.6;
+}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 16px;border-bottom:1px solid var(--line);padding-bottom:12px}
+h1{font-size:20px;font-weight:700;margin:0;letter-spacing:.02em}
+.sub{color:var(--muted);font-size:13px;min-width:0}
+
+.stage-row{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:16px;align-items:start}
+@media (max-width:820px){.stage-row{grid-template-columns:minmax(0,1fr)}}
+
+.forge{position:relative;background:#0d0908;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+#stage{display:block;width:100%;height:440px;touch-action:none;cursor:crosshair}
+.statepill,.facepill{
+  position:absolute;top:8px;font-family:var(--mono);font-size:12px;
+  background:rgba(13,9,8,.82);border:1px solid var(--line);border-radius:4px;padding:4px 8px;
+}
+.statepill{left:8px;letter-spacing:.06em}
+.facepill{right:8px}
+.statepill b,.facepill b{color:var(--ember);font-weight:600}
+.facepill .warn{color:var(--bad)}
+.hintbar{
+  position:absolute;bottom:8px;left:8px;right:8px;font-size:12px;color:var(--muted);
+  background:rgba(13,9,8,.82);border:1px solid var(--line);border-radius:4px;padding:4px 8px;
+}
+.zonepill{
+  position:absolute;bottom:40px;left:8px;font-family:var(--mono);font-size:12px;
+  background:rgba(13,9,8,.82);border:1px solid var(--line);border-radius:4px;padding:4px 8px;
+}
+.zonepill b{font-weight:600}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:12px}
+.panel h2{font-size:13px;margin:0 0 10px;letter-spacing:.08em;color:var(--muted);font-weight:500}
+
+.meter{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.meter .lab{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+.meter .lab span:last-child{font-family:var(--mono);color:var(--fg)}
+.track{height:6px;background:var(--panel-2);border-radius:999px;overflow:hidden}
+.fill{height:100%;width:0;background:var(--ember);transition:width .06s linear}
+.fill.heat{background:linear-gradient(90deg,#6b1a0e,#a52a14,#e0661c,#f8d46a,#fff4d0)}
+.fill.cap{background:#6f5a4c}
+.tiltwrap{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.tiltwrap .lab{font-size:12px;color:var(--muted);white-space:nowrap}
+#tiltbar{flex:1;height:18px;min-width:0}
+
+.ctrls{display:flex;flex-direction:column;gap:14px}
+fieldset{border:0;padding:0;margin:0}
+legend{font-size:12px;color:var(--muted);padding:0 0 6px;letter-spacing:.04em}
+.radio{display:flex;flex-direction:column;gap:4px}
+.radio label{display:flex;gap:8px;align-items:flex-start;font-size:13px;cursor:pointer;padding:5px 6px;border-radius:4px;border:1px solid transparent}
+.radio label:hover{background:var(--panel-2)}
+.radio input{margin:4px 0 0;accent-color:var(--ember);flex:none}
+.radio .d{display:block;color:var(--muted);font-size:11px;line-height:1.45}
+.row{display:flex;align-items:center;gap:8px;font-size:13px}
+.row input[type=range]{flex:1;min-width:0;accent-color:var(--ember)}
+.row output{font-family:var(--mono);font-size:12px;color:var(--muted);min-width:46px;text-align:right}
+.chk{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer}
+.chk input{accent-color:var(--ember)}
+button{font-family:var(--sans);font-size:13px;color:var(--fg);background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--ember)}
+button:focus-visible,input:focus-visible,label:focus-within{outline:2px solid var(--ember);outline-offset:2px}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap}
+
+.data-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+canvas.chart{display:block;width:100%;background:#0d0908;border:1px solid var(--line);border-radius:4px}
+.cap{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5}
+
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{text-align:right;padding:6px;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-weight:500}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+tr.active td{color:var(--ember)}
+.tblwrap{overflow-x:auto}
+
+.notes{font-size:12.5px;color:var(--muted);line-height:1.7}
+.notes b{color:var(--fg);font-weight:500}
+.keys{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center}
+kbd{font-family:var(--mono);font-size:11px;background:var(--panel-2);border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:2px 6px}
+.keypad{display:grid;grid-template-columns:repeat(3,34px);gap:4px;margin:10px 0 4px}
+.keypad kbd{text-align:center;padding:6px 0}
+.keypad .sp{visibility:hidden}
+.lasthit{font-size:11.5px;color:var(--muted);line-height:1.6;border-top:1px solid var(--line);padding-top:8px;margin-top:4px}
+.lasthit b{color:var(--fg);font-weight:500}
+.flags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;min-height:22px}
+.flag{font-size:11px;font-family:var(--mono);padding:2px 7px;border-radius:3px;border:1px solid}
+.flag.combo{color:var(--ember);border-color:var(--ember)}
+.flag.flow{color:var(--ok);border-color:var(--ok)}
+.flag.cold{color:var(--bad);border-color:var(--bad)}
+.flag.burn{color:var(--warn);border-color:var(--warn)}
+.flag.air{color:var(--warn);border-color:var(--warn)}
+@media (prefers-reduced-motion:reduce){.fill{transition:none}}
+</style>
+
+<div class="wrap">
+
+<header>
+  <h1>揮錘測試台</h1>
+  <div class="sub">鐵砧固定，鐵柱沿右上左下擺。QEAD 推料、WS 翻面。四個面各自記著自己的表面狀態。</div>
+</header>
+
+<div class="stage-row">
+  <div class="forge">
+    <canvas id="stage" width="900" height="440"></canvas>
+    <div class="statepill">狀態 <b id="stateTxt">空手</b> · 火次 <b id="heatCount">1</b> · 錘數 <b id="hitCount">0</b></div>
+    <div class="facepill">朝上 第 <b id="faceNo">1</b> 面 · 朝你 第 <b id="nearNo">2</b> 面 <span id="hiddenCrack" class="warn"></span></div>
+    <div class="zonepill">落點位置 <b id="zoneTxt">砧面</b></div>
+    <div class="hintbar" id="hint">在鐵柱上按住左鍵鎖定落點，往一邊甩蓄力，反向甩回出力，放開落錘。QEAD 推料、WS 翻面。</div>
+  </div>
+
+  <div class="panel">
+    <h2>即時參數</h2>
+    <div class="meter">
+      <div class="lab"><span>後擺幅度（力道上限）</span><span id="vWind">0%</span></div>
+      <div class="track"><div class="fill cap" id="fWind"></div></div>
+    </div>
+    <div class="meter">
+      <div class="lab"><span>前擺峰值速度</span><span id="vSpeed">0</span></div>
+      <div class="track"><div class="fill" id="fSpeed"></div></div>
+    </div>
+    <div class="meter">
+      <div class="lab"><span>上一錘力道</span><span id="vForce">—</span></div>
+      <div class="track"><div class="fill" id="fForce"></div></div>
+    </div>
+    <div class="tiltwrap">
+      <span class="lab">錘面傾角</span>
+      <canvas id="tiltbar" width="340" height="36"></canvas>
+    </div>
+    <div class="meter">
+      <div class="lab"><span>熱度</span><span id="vHeat">—</span></div>
+      <div class="track"><div class="fill heat" id="fHeat"></div></div>
+    </div>
+    <div class="lasthit" id="lastHit">還沒打過。這一欄會說明上一錘為什麼變成那樣。</div>
+    <div class="flags" id="flags"></div>
+  </div>
+</div>
+
+<div class="stage-row">
+  <div class="panel">
+    <h2>三個待測分歧</h2>
+    <div class="ctrls">
+      <fieldset>
+        <legend>分歧一　落點取哪裡</legend>
+        <div class="radio">
+          <label><input type="radio" name="mode" value="anchor" id="mAnchor"><span>取按下座標<span class="d">瞄準與出力完全分離。散布應該是一個緊的圓，而且跟力道無關</span></span></label>
+          <label><input type="radio" name="mode" value="release" id="mRelease"><span>取放開座標<span class="d">放開即落下。甩動同時是瞄準，散布應該沿甩動軸拉成長橢圓</span></span></label>
+          <label><input type="radio" name="mode" value="hybrid" id="mHybrid" checked><span>混合（文件建議）<span class="d">按下鎖定落點，再加上由前擺抖動與過量幅度算出的偏移。散布應該隨力道變大而變大</span></span></label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>分歧二　落錘時機</legend>
+        <label class="chk"><input type="checkbox" id="optRecall" checked>允許收手（甩回原點附近再放開）</label>
+        <label class="chk"><input type="checkbox" id="optPeak" checked>力道取放開前 120ms 的峰值速度</label>
+        <div class="cap" style="margin-top:6px">關掉第二項改成直接取放開瞬間的速度，試試看力道穩不穩。</div>
+      </fieldset>
+      <fieldset>
+        <legend>分歧三　節奏</legend>
+        <label class="chk"><input type="checkbox" id="optRhythm" checked>節奏穩定時給順手加成（變形效率 ×1.3）</label>
+        <div class="cap" style="margin-top:6px">只給獎勵、不扣分。看間隔分布，確認你在粗胚跟修形時是不是自然打出不同節奏。</div>
+      </fieldset>
+      <fieldset>
+        <legend>技藝（手抖半徑）</legend>
+        <div class="row">
+          <input type="range" id="skill" min="0" max="36" value="14" step="1">
+          <output id="skillOut">14 px</output>
+        </div>
+      </fieldset>
+      <div class="btnrow">
+        <button id="btnReheat" type="button">回爐（或按住空白鍵）</button>
+        <button id="btnNewBar" type="button">換一條料</button>
+        <button id="btnClear" type="button">清除本模式數據</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>操作</h2>
+    <div class="notes">
+      <b>右手（滑鼠）</b>按下鎖定落點、後擺幅度決定力道上限、前擺峰值速度決定實際力道、前擺終點相對落點的水平位移決定錘面傾角與金屬流向。
+      <div class="keys"><kbd>按住左鍵</kbd><kbd>左右甩動</kbd><kbd>放開＝落錘</kbd><kbd>按住不放＝連打</kbd></div>
+
+      <p style="margin:12px 0 0"><b>左手推料：QEAD 就是螢幕上的四個斜方向。</b></p>
+      <div class="keypad">
+        <kbd>Q</kbd><kbd class="sp">·</kbd><kbd>E</kbd>
+        <kbd class="sp">·</kbd><kbd class="sp">·</kbd><kbd class="sp">·</kbd>
+        <kbd>A</kbd><kbd class="sp">·</kbd><kbd>D</kbd>
+      </div>
+      <p style="margin:4px 0 0">鐵柱躺在右上左下的方向上，所以 <kbd>E</kbd><kbd>A</kbd> 是沿著料身送進送出，<kbd>Q</kbd><kbd>D</kbd> 是把料橫越砧面推過去。推到砧角上或推出砧面外，錘下去就沒有支撐。</p>
+
+      <p style="margin:12px 0 0"><b>翻面是 W／S。</b>鐵柱有四個面，每一面各自記著自己的錘痕跟裂紋。你一次只看得到朝上那面跟朝你那面，另外兩面要翻過來才看得到。右上角會告訴你有幾道裂紋藏著。</p>
+      <div class="keys"><kbd>W</kbd>往外滾一面<kbd>S</kbd>往內滾一面<kbd>空白鍵</kbd>踩風箱回爐</div>
+    </div>
+  </div>
+</div>
+
+<div class="data-row">
+  <div class="panel">
+    <h2>落點散布（當前模式）</h2>
+    <canvas id="scatter" class="chart" width="560" height="300"></canvas>
+    <div class="cap" id="scatterCap">十字為目標點。圈為 10 / 20 / 40 px。</div>
+  </div>
+  <div class="panel">
+    <h2>敲打間隔分布</h2>
+    <canvas id="hist" class="chart" width="560" height="300"></canvas>
+    <div class="cap" id="histCap">橫軸為與前一錘的間隔。</div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>三種模式比較</h2>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th>落點模式</th><th>錘數</th><th>平均徑向誤差</th><th>標準差</th><th>輕打誤差</th><th>中打誤差</th><th>重打誤差</th><th>節奏變異係數</th></tr></thead>
+      <tbody id="cmpBody"></tbody>
+    </table>
+  </div>
+  <div class="cap">判讀方式照 <b>06 第三節</b>：取按下座標應該是一個緊的圓且輕中重三欄差不多；取放開座標應該散很開；混合應該收得比放開緊，但輕中重依序變大。</div>
+</div>
+
+</div>
+
+<script>
+(function(){
+"use strict";
+
+// ---------- 常數 ----------
+var SEG = 64;
+var DEADZONE_R = 0.015, COMBO_MIN_R = 0.06, COMBO_GAP = 70;
+var WINDUP_CAP_R = 0.25, SPEED_MAX_R = 3.0, PEAK_WINDOW = 120;
+var RECALL_R = 0.03, TILT_SPAN_R = 0.12, COLD = 0.28;
+var AX_DEG = -23;          // 鐵柱軸線：右上為正
+var TOP_SCALE = 26;        // 斷面「深度」投影到螢幕的係數（往畫面內後退）
+var SIDE_SCALE = 34;       // 斷面「高度」投影到螢幕的係數（往畫面下）
+var BAR_LEN = 430;
+var FORE = 0.26;           // 遠端縮小的比例
+var FLIP_MS = 200;
+var STEP = 16;             // 一次推料的距離
+var HEAT_COLORS = [
+  [0.00,'#4a1208'],[0.18,'#6b1a0e'],[0.36,'#a52a14'],
+  [0.56,'#e0661c'],[0.74,'#f2a33c'],[0.88,'#f8d46a'],[1.00,'#fff4d0']
+];
+var ZONE_LABEL = {face:'砧面', edge:'砧邊', horn:'砧角', air:'懸空'};
+var ZONE_COLOR = {face:'#7aa05e', edge:'#d9a22b', horn:'#d9a22b', air:'#c4503e'};
+
+// 軸向量：E 是右上，A 是左下；垂直向量 perp 指右下，Q 是左上，D 是右下
+var RAD = AX_DEG*Math.PI/180;
+var AX = {x:Math.cos(RAD), y:Math.sin(RAD)};
+var PE = {x:-AX.y, y:AX.x};
+
+// ---------- 狀態 ----------
+var S = {IDLE:'空手',ARMED:'握錘',WIND:'後擺',SWING:'前擺'};
+var st = S.IDLE;
+var anchor = {x:0,y:0};
+var windupDir=0, windupPeak=0, windExtreme=0;
+var swingDir=0, swingExtreme=0, peakSpeed=0, jitterAccum=0, swingStartY=0, swingStartX=0;
+var comboInPress=0, samples=[], pressing=false;
+
+var heat=0.92, heatCount=1, hitCount=0, blowHold=0, burned=false;
+var offAlong=0, offAcross=0;
+var ori = 0;                       // 朝上的面（0..3）
+var flipT=1, flipDir=1;
+var dims = [newArr(), newArr()];   // 斷面的兩個維度
+var faceMarks = [[],[],[],[]];     // 四個面各自的表面痕跡
+var bend = 0;                      // 懸空挨打造成的彎折
+var targetSeg = 20;
+var lastHitTime=0, intervals=[], inFlow=false;
+var lastForce=0, lastTilt=0, lastZone='face';
+var flashUntil=0, flashMsg='', flashCls='';
+var shake=0;
+var hammer={t:1,x:0,y:0,force:0,dir:0};
+var hits={anchor:[],release:[],hybrid:[]};
+var MODE_LABEL={anchor:'取按下座標',release:'取放開座標',hybrid:'混合'};
+
+function newArr(){ var a=new Array(SEG); for(var i=0;i<SEG;i++) a[i]=1; return a; }
+
+// ---------- DOM ----------
+var $=function(id){return document.getElementById(id);};
+var stage=$('stage'), sctx=stage.getContext('2d');
+var tiltC=$('tiltbar'), tctx=tiltC.getContext('2d');
+var scatC=$('scatter'), scctx=scatC.getContext('2d');
+var histC=$('hist'), hctx=histC.getContext('2d');
+var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function mode(){ var el=document.querySelector('input[name=mode]:checked'); return el?el.value:'hybrid'; }
+function skillRadius(){ return parseFloat($('skill').value); }
+
+function fit(c,cssH){
+  var dpr=window.devicePixelRatio||1, w=c.clientWidth||c.width, h=cssH||c.clientHeight||c.height;
+  c.width=Math.max(1,Math.round(w*dpr)); c.height=Math.max(1,Math.round(h*dpr));
+  c.style.height=h+'px'; c.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
+  return {w:w,h:h};
+}
+var dim={stage:{w:900,h:440},tilt:{w:340,h:36},scat:{w:560,h:300},hist:{w:560,h:300}};
+function resizeAll(){
+  dim.stage=fit(stage,440); dim.tilt=fit(tiltC,36);
+  dim.scat=fit(scatC,300); dim.hist=fit(histC,300);
+  drawScatter(); drawHist();
+}
+window.addEventListener('resize',resizeAll);
+function W(){ return dim.stage.w; }
+function deadzone(){ return DEADZONE_R*W(); }
+
+// ---------- 四個面 ----------
+// 朝上＝ori，朝你＝ori+1，朝下＝ori+2，朝外＝ori+3
+// 敲打壓縮的是「垂直」那個維度：ori 為偶數時是 dims[0]，奇數時是 dims[1]
+function upFace(){ return ori % 4; }
+function nearFace(){ return (ori+1) % 4; }
+function vAxis(){ return ori % 2; }
+function hAxis(){ return (ori+1) % 2; }
+function faceDims(i){
+  var v = dims[vAxis()][i], hh = dims[hAxis()][i];
+  if(flipT >= 1) return {side:v, top:hh};
+  var a = flipT*Math.PI/2, c=Math.abs(Math.cos(a)), s=Math.abs(Math.sin(a));
+  return {side: v*c + hh*s, top: hh*c + v*s};
+}
+
+// ---------- 鐵砧與鐵柱的幾何 ----------
+var ANVIL_L = 300, ANVIL_W = 72, HORN_LEN = 110;
+function anvilC(){ return {x: dim.stage.w*0.46, y: dim.stage.h*0.50}; }
+
+// 每段沿軸的距離（遠端較短，製造透視）與縮放
+var segD = [], segS = [];
+function rebuildSegs(){
+  var base = BAR_LEN/SEG, acc = 0;
+  segD.length = 0; segS.length = 0;
+  for(var i=0;i<SEG;i++){
+    var f = 1 - FORE*(i/(SEG-1));
+    segS.push(f);
+    segD.push(acc + base*f*0.5);
+    acc += base*f;
+  }
+  for(var j=0;j<SEG;j++) segD[j] -= acc/2;
+}
+rebuildSegs();
+
+// 第 i 段與鐵砧面的接觸點（也就是鐵柱底部、朝你那條稜）
+function contactPt(i){
+  var c = anvilC();
+  var d = segD[i] + offAlong;
+  var across = offAcross + TOP_SCALE*0.5;   // 讓柱身跨在砧面中線上，不要騎到後緣
+  return {x: c.x + AX.x*d + PE.x*across, y: c.y + AX.y*d + PE.y*across};
+}
+// 第 i 段頂面朝你那條稜的中點（瞄準用）
+function topPt(i){
+  var p = contactPt(i), d = faceDims(i), s = segS[i];
+  return {x: p.x - PE.x*d.top*TOP_SCALE*s*0.5, y: p.y - d.side*SIDE_SCALE*s - PE.y*d.top*TOP_SCALE*s*0.5};
+}
+// 螢幕點投影回最近的段
+function ptToSeg(x,y){
+  var c = anvilC();
+  var dx = x - c.x - PE.x*offAcross, dy = y - c.y - PE.y*offAcross;
+  var along = dx*AX.x + dy*AX.y - offAlong;
+  var best = 0, bd = Infinity;
+  for(var i=0;i<SEG;i++){
+    var d = Math.abs(segD[i] - along);
+    if(d < bd){ bd = d; best = i; }
+  }
+  return {seg: best, dist: bd};
+}
+// 接觸點落在鐵砧的哪個區
+function zoneOf(i){
+  var along = segD[i] + offAlong, across = offAcross;
+  var halfL = ANVIL_L/2, halfW = ANVIL_W/2;
+  if(along > halfL){
+    var t = (along - halfL)/HORN_LEN;
+    if(t <= 1 && Math.abs(across) < halfW*(1 - t*0.72)) return 'horn';
+    return 'air';
+  }
+  if(along < -halfL) return 'air';
+  if(Math.abs(across) <= halfW*0.78) return 'face';
+  if(Math.abs(across) <= halfW) return 'edge';
+  return 'air';
+}
+
+// ---------- 顏色 ----------
+function heatColor(v){
+  v=Math.max(0,Math.min(1,v));
+  for(var i=1;i<HEAT_COLORS.length;i++){
+    if(v<=HEAT_COLORS[i][0]){
+      var a=HEAT_COLORS[i-1],b=HEAT_COLORS[i];
+      return mix(a[1],b[1],(v-a[0])/(b[0]-a[0]));
+    }
+  }
+  return HEAT_COLORS[HEAT_COLORS.length-1][1];
+}
+function hex(c){ return [parseInt(c.substr(1,2),16),parseInt(c.substr(3,2),16),parseInt(c.substr(5,2),16)]; }
+function mix(c1,c2,t){
+  var a=hex(c1),b=hex(c2);
+  return 'rgb('+Math.round(a[0]+(b[0]-a[0])*t)+','+Math.round(a[1]+(b[1]-a[1])*t)+','+Math.round(a[2]+(b[2]-a[2])*t)+')';
+}
+function shade(c,k){ var m=c.match(/\d+/g); return 'rgb('+Math.round(m[0]*k)+','+Math.round(m[1]*k)+','+Math.round(m[2]*k)+')'; }
+
+// ---------- 取樣 ----------
+function pushSample(x,y,t){
+  var vx=0;
+  if(samples.length){
+    var n=Math.min(3,samples.length), a=samples[samples.length-n], dt=(t-a.t)/1000;
+    if(dt>0) vx=(x-a.x)/dt;
+  }
+  samples.push({x:x,y:y,t:t,vx:vx});
+  while(samples.length && t-samples[0].t>400) samples.shift();
+  return vx;
+}
+function peakInWindow(now){
+  var p=0;
+  for(var i=samples.length-1;i>=0;i--){
+    if(now-samples[i].t>PEAK_WINDOW) break;
+    if(Math.abs(samples[i].vx)>p) p=Math.abs(samples[i].vx);
+  }
+  return p;
+}
+function currentSpeed(){ return samples.length?Math.abs(samples[samples.length-1].vx):0; }
+
+// ---------- 輸入 ----------
+function localPos(e){ var r=stage.getBoundingClientRect(); return {x:e.clientX-r.left,y:e.clientY-r.top}; }
+
+stage.addEventListener('pointerdown',function(e){
+  e.preventDefault(); stage.setPointerCapture(e.pointerId); pressing=true;
+  var p=localPos(e); anchor.x=p.x; anchor.y=p.y; st=S.ARMED;
+  windupDir=0; windupPeak=0; windExtreme=p.x; peakSpeed=0; jitterAccum=0; comboInPress=0;
+  samples.length=0; pushSample(p.x,p.y,performance.now());
+  setHint('往一邊甩蓄力。甩得越遠，這一錘的力道上限越高。');
+});
+
+stage.addEventListener('pointermove',function(e){
+  if(!pressing) return;
+  var p=localPos(e), now=performance.now(), vx=pushSample(p.x,p.y,now), dz=deadzone(), dx=p.x-anchor.x;
+
+  if(st===S.ARMED && Math.abs(dx)>dz){
+    st=S.WIND; windupDir=dx>0?1:-1; windExtreme=p.x;
+    setHint('反向甩回去出力，然後放開落錘。甩回原點附近再放開就是收手。');
+  }
+  if(st===S.WIND){
+    if((p.x-windExtreme)*windupDir>0) windExtreme=p.x;
+    windupPeak=Math.max(windupPeak,Math.abs(windExtreme-anchor.x));
+    if((windExtreme-p.x)*windupDir>dz && Math.sign(vx)===-windupDir){
+      st=S.SWING; swingDir=-windupDir;
+      swingExtreme=p.x; swingStartX=p.x; swingStartY=p.y;
+      peakSpeed=0; jitterAccum=0;
+    }
+  } else if(st===S.SWING){
+    peakSpeed=Math.max(peakSpeed,Math.abs(vx));
+    jitterAccum=Math.max(jitterAccum,Math.abs(p.y-swingStartY));
+    if((p.x-swingExtreme)*swingDir>0) swingExtreme=p.x;
+    var travel=(swingExtreme-swingStartX)*swingDir;
+    if((swingExtreme-p.x)*swingDir>dz && travel>COMBO_MIN_R*W() &&
+       (now-lastHitTime)>COMBO_GAP && Math.sign(vx)===-swingDir){
+      registerHit(p,now,true); comboInPress++;
+      swingDir=-swingDir; swingExtreme=p.x; swingStartX=p.x; swingStartY=p.y;
+      peakSpeed=0; jitterAccum=0;
+    }
+  }
+});
+
+function endPress(e){
+  if(!pressing) return;
+  pressing=false;
+  var p=localPos(e), now=performance.now();
+  if(st===S.SWING){
+    var recall=$('optRecall').checked && Math.abs(p.x-anchor.x)<RECALL_R*W() && currentSpeed()<DEADZONE_R*W()*4;
+    if(recall){ flash('收手','flag'); setHint('收手。錘子放下，沒打下去，也沒耗掉熱度。'); }
+    else registerHit(p,now,false);
+  } else if(st===S.WIND){
+    setHint('只有後擺沒有前擺，沒打出去。舉起來之後要反向甩回才算一錘。');
+  }
+  st=S.IDLE; windupPeak=0; peakSpeed=0;
+}
+stage.addEventListener('pointerup',endPress);
+stage.addEventListener('pointercancel',endPress);
+
+// ---------- 落錘 ----------
+function registerHit(p,now,isCombo){
+  var w=W();
+  var forceCap=Math.min(1,(windupPeak/w)/WINDUP_CAP_R);
+  var speed=$('optPeak').checked?peakInWindow(now):currentSpeed();
+  var force=Math.max(0.04,Math.min(Math.min(1,speed/(w*SPEED_MAX_R)),forceCap));
+  var tilt=Math.max(-1,Math.min(1,(p.x-anchor.x)/(w*TILT_SPAN_R)));
+
+  var m=mode();
+  var base=(m==='release')?{x:p.x,y:p.y}:{x:anchor.x,y:anchor.y};
+  var offMag=skillRadius();
+  if(m==='hybrid'){
+    var overshoot=Math.max(0,windupPeak-WINDUP_CAP_R*w)/(WINDUP_CAP_R*w);
+    offMag+=(jitterAccum/dim.stage.h)*70+overshoot*28;
+  }
+  var ang=Math.random()*Math.PI*2, rad=offMag*Math.sqrt(Math.random());
+  var land={x:base.x+Math.cos(ang)*rad, y:base.y+Math.sin(ang)*rad};
+
+  var interval=lastHitTime?(now-lastHitTime):0;
+  if(interval>0&&interval<4000) intervals.push(interval);
+  if(intervals.length>60) intervals.shift();
+  inFlow=false;
+  if($('optRhythm').checked && intervals.length>=3){
+    var l3=intervals.slice(-3), mean=(l3[0]+l3[1]+l3[2])/3;
+    var sd=Math.sqrt(((l3[0]-mean)*(l3[0]-mean)+(l3[1]-mean)*(l3[1]-mean)+(l3[2]-mean)*(l3[2]-mean))/3);
+    inFlow=mean>0&&(sd/mean)<0.25;
+  }
+  lastHitTime=now;
+
+  var wasCold=heat<COLD;
+  var res=applyHit(land,force*(inFlow?1.3:1),tilt);
+
+  var tp=topPt(targetSeg);
+  var edx=land.x-tp.x, edy=land.y-tp.y;
+  hits[m].push({dx:edx,dy:edy,force:force,interval:interval,combo:!!isCombo});
+  if(hits[m].length>400) hits[m].shift();
+
+  var why=[];
+  why.push('力道 <b>'+Math.round(force*100)+'%</b>');
+  why.push('偏離目標 <b>'+Math.round(Math.sqrt(edx*edx+edy*edy))+' px</b>');
+  why.push('落在<b>'+ZONE_LABEL[res.zone]+'</b>');
+  why.push(Math.abs(tilt)<0.15?'正面壓薄':('斜打，金屬往'+(tilt>0?'右上':'左下')+'流'));
+  why.push(isCombo?'連打':'單擊');
+  if(inFlow) why.push('順手 ×1.3');
+  if(res.zone==='air') why.push('<b style="color:#d9a22b">沒有砧面支撐，只把料壓彎</b>');
+  if(res.zone==='horn') why.push('<b style="color:#d9a22b">在砧角上，料被彎而不是被壓薄</b>');
+  if(wasCold && res.zone!=='air') why.push('<b style="color:#c4503e">熱度不足，裂了一道</b>');
+  $('lastHit').innerHTML='上一錘：'+why.join('　·　');
+
+  hitCount++; lastForce=force; lastTilt=tilt; lastZone=res.zone;
+  targetSeg=(targetSeg+2)%SEG;
+
+  hammer.x=land.x; hammer.y=land.y; hammer.force=force; hammer.dir=tilt;
+  hammer.t=reduceMotion?1:0;
+  if(!reduceMotion) shake=Math.min(1,0.35+force);
+
+  updateReadouts(); drawScatter(); drawHist(); drawCompare();
+  if(isCombo) flash('連打 ×'+(comboInPress+1),'combo');
+}
+
+function applyHit(land,force,tilt){
+  var hit=ptToSeg(land.x,land.y);
+  var seg=hit.seg;
+  var zone=zoneOf(seg);
+
+  // 離鐵柱太遠就是打在砧面上
+  if(hit.dist > BAR_LEN/SEG*3 + 20){
+    flash('打空','air'); setHint('打空了，錘子落在砧面上。');
+    heat=Math.max(0,heat-0.006);
+    return {zone:'air', seg:seg};
+  }
+
+  if(zone==='air' || zone==='horn'){
+    bend=Math.min(1,bend+force*0.22);
+    faceMarks[upFace()].push({seg:seg,type:'dent',force:force*0.5});
+    flash(zone==='air'?'懸空，料被壓彎':'砧角上，料被彎','air');
+    setHint(zone==='air'
+      ? '那一段懸在砧面外，沒有支撐。要用 Q／D 把料推回砧面上。'
+      : '落在砧角上，這是用來彎料的位置，不是用來壓薄的。');
+    heat=Math.max(0,heat-(0.008+force*0.014));
+    return {zone:zone, seg:seg};
+  }
+
+  var ax=vAxis(), cold=heat<COLD, eff=cold?force*0.45:force;
+  var spreadW = (zone==='edge') ? 3.0 : 5.0;   // 砧邊上作用範圍窄，容易打出台階
+  var removed=0;
+  for(var d=-5;d<=5;d++){
+    var i=seg+d;
+    if(i<0||i>=SEG) continue;
+    var gk=Math.exp(-(d*d)/spreadW);
+    var before=dims[ax][i];
+    dims[ax][i]=Math.max(0.12,before-eff*0.085*gk);
+    removed+=before-dims[ax][i];
+  }
+  var right=(tilt+1)/2;
+  spread(ax,seg,removed*0.72,1,right);
+  spread(ax,seg,removed*0.72,-1,1-right);
+
+  faceMarks[upFace()].push({seg:seg,type:cold?'crack':'dent',force:force});
+  if(faceMarks[upFace()].length>80) faceMarks[upFace()].shift();
+
+  if(cold){ flash('冷作裂紋','cold'); setHint('熱度掉到暗紅以下了。按住空白鍵回爐再打。'); }
+  heat=Math.max(0,heat-(0.011+force*0.022));
+  return {zone:zone, seg:seg};
+}
+function spread(ax,seg,amount,dir,weight){
+  if(weight<=0||amount<=0) return;
+  var total=0, ws=[];
+  for(var d=3;d<=12;d++){
+    var i=seg+dir*d;
+    if(i<0||i>=SEG) continue;
+    var wg=1/(d-1); ws.push([i,wg]); total+=wg;
+  }
+  for(var k=0;k<ws.length;k++)
+    dims[ax][ws[k][0]]=Math.min(1.45,dims[ax][ws[k][0]]+amount*weight*(ws[k][1]/total));
+}
+
+function flash(m,c){ flashMsg=m; flashCls=c; flashUntil=performance.now()+1400; }
+function setHint(t){ $('hint').textContent=t; }
+
+// ---------- 鍵盤 ----------
+var keys={};
+function startFlip(d){ if(flipT<1) return; flipDir=d; flipT=0; }
+window.addEventListener('keydown',function(e){
+  var k=e.key.toLowerCase();
+  if(k===' '||e.code==='Space'){ e.preventDefault(); keys.space=true; return; }
+  if('qeadws'.indexOf(k)<0 || k.length!==1) return;
+  e.preventDefault();
+  if(keys[k]) return;
+  keys[k]=true;
+  // QEAD：螢幕上的四個斜方向。鐵柱沿 E（右上）／A（左下）躺著
+  if(k==='e'){ offAlong+=STEP; }
+  if(k==='a'){ offAlong-=STEP; }
+  if(k==='d'){ offAcross+=STEP; }
+  if(k==='q'){ offAcross-=STEP; }
+  offAlong=Math.max(-240,Math.min(300,offAlong));
+  offAcross=Math.max(-110,Math.min(110,offAcross));
+  if('qead'.indexOf(k)>=0){
+    var z=zoneOf(targetSeg);
+    setHint('推料：目標段現在落在' + ZONE_LABEL[z] + '。' +
+      (z==='face'?'可以正常壓薄。':(z==='air'?'懸空，打下去只會把料壓彎。':(z==='horn'?'砧角是用來彎料的。':'砧邊會打出台階。'))));
+  }
+  if(k==='w') startFlip(1);
+  if(k==='s') startFlip(-1);
+});
+window.addEventListener('keyup',function(e){
+  var k=e.key.toLowerCase();
+  if(k===' '||e.code==='Space'){ keys.space=false; blowHold=0; return; }
+  keys[k]=false;
+});
+
+// ---------- 主迴圈 ----------
+var lastT=performance.now();
+function loop(now){
+  var dt=Math.min(0.05,(now-lastT)/1000); lastT=now;
+
+  if(keys.space){
+    blowHold+=dt;
+    var was=heat; heat=Math.min(1,heat+dt*0.55);
+    if(was<0.3&&heat>=0.75) heatCount++;
+    if(heat>=0.999&&blowHold>1.6&&!burned){
+      burned=true; flash('燒損','burn');
+      setHint('過熱了。晶界已經氧化，這段料淬火時會從這裡裂開。');
+    }
+  } else {
+    heat=Math.max(0,heat-dt*0.022);
+    if(heat<0.98) burned=false;
+  }
+
+  if(flipT<1){
+    flipT=Math.min(1,flipT+dt*1000/FLIP_MS);
+    if(flipT>=1){
+      ori=(ori+(flipDir>0?1:3))%4;
+      var hid=countHidden();
+      setHint('翻面：現在朝上的是第 '+(upFace()+1)+' 面，朝你的是第 '+(nearFace()+1)+' 面。'+
+        (hid?('還有 '+hid+' 道裂紋在看不見的面。'):'看不見的兩面沒有裂紋。'));
+    }
+  }
+  if(hammer.t<1) hammer.t=Math.min(1,hammer.t+dt*5.5);
+  if(shake>0) shake=Math.max(0,shake-dt*4.5);
+
+  drawStage(now); drawTilt(); updateReadouts();
+  requestAnimationFrame(loop);
+}
+function crackCount(f){
+  var n=0, a=faceMarks[f];
+  for(var i=0;i<a.length;i++) if(a[i].type==='crack') n++;
+  return n;
+}
+function countHidden(){ return crackCount((ori+2)%4)+crackCount((ori+3)%4); }
+
+// ---------- 繪製 ----------
+function drawStage(now){
+  var w=dim.stage.w, h=dim.stage.h, dpr=window.devicePixelRatio||1;
+  sctx.setTransform(dpr,0,0,dpr,0,0);
+  sctx.clearRect(0,0,w,h);
+  sctx.fillStyle='#0d0908'; sctx.fillRect(0,0,w,h);
+  if(shake>0) sctx.translate((Math.random()-0.5)*6*shake,(Math.random()-0.5)*5*shake);
+
+  // 爐火從左後方
+  var glow=sctx.createRadialGradient(w*0.14,h*0.12,10,w*0.14,h*0.12,w*0.85);
+  glow.addColorStop(0,'rgba(224,102,28,'+(0.18+heat*0.14)+')');
+  glow.addColorStop(0.45,'rgba(165,42,20,0.07)');
+  glow.addColorStop(1,'rgba(0,0,0,0)');
+  sctx.fillStyle=glow; sctx.fillRect(0,0,w,h);
+
+  drawAnvil();
+  drawBar();
+  drawTongs(h);
+  drawTargetMark();
+  drawAim();
+  drawHammer(w,h);
+  drawFaceWidget(w);
+  drawVignette(w,h);
+
+  sctx.setTransform(dpr,0,0,dpr,0,0);
+
+  var fl=$('flags'), want='';
+  if(now<flashUntil) want+='<span class="flag '+flashCls+'">'+flashMsg+'</span>';
+  if(inFlow) want+='<span class="flag flow">順手 ×1.3</span>';
+  if(heat<COLD) want+='<span class="flag cold">太冷，再打會裂</span>';
+  if(burned) want+='<span class="flag burn">燒損</span>';
+  if(bend>0.05) want+='<span class="flag air">彎折 '+Math.round(bend*100)+'%</span>';
+  if(fl.innerHTML!==want) fl.innerHTML=want;
+
+  $('faceNo').textContent=upFace()+1;
+  $('nearNo').textContent=nearFace()+1;
+  var hid=countHidden();
+  $('hiddenCrack').textContent=hid?('· 背面藏著 '+hid+' 道裂紋'):'';
+  var z=zoneOf(targetSeg);
+  $('zoneTxt').textContent=ZONE_LABEL[z];
+  $('zoneTxt').style.color=ZONE_COLOR[z];
+}
+
+// 砧面上的一點（沿軸 along、橫向 across）轉螢幕座標
+function anvilPt(along,across){
+  var c=anvilC();
+  return {x:c.x+AX.x*along+PE.x*across, y:c.y+AX.y*along+PE.y*across};
+}
+function poly(pts,fill,stroke,lw){
+  sctx.beginPath();
+  for(var i=0;i<pts.length;i++){ if(i===0) sctx.moveTo(pts[i].x,pts[i].y); else sctx.lineTo(pts[i].x,pts[i].y); }
+  sctx.closePath();
+  if(fill){ sctx.fillStyle=fill; sctx.fill(); }
+  if(stroke){ sctx.strokeStyle=stroke; sctx.lineWidth=lw||1; sctx.stroke(); }
+}
+
+function drawAnvil(){
+  var hl=ANVIL_L/2, hw=ANVIL_W/2;
+  var bl=anvilPt(-hl,-hw), br=anvilPt(hl,-hw);   // 後緣（遠離玩家）
+  var fl=anvilPt(-hl, hw), fr=anvilPt(hl, hw);   // 前緣（靠玩家）
+  var BODY = 150;  // 砧身在螢幕上往下的高度
+
+  // 砧身：前緣往下，中段收腰，底部外擴
+  var waistIn = 26, baseOut = 16;
+  poly([
+    fl, fr,
+    {x:fr.x-waistIn, y:fr.y+BODY*0.55},
+    {x:fr.x-waistIn+baseOut, y:fr.y+BODY},
+    {x:fl.x+waistIn-baseOut, y:fl.y+BODY},
+    {x:fl.x+waistIn, y:fl.y+BODY*0.55}
+  ],'#241e1b');
+
+  // 左端面
+  poly([fl,bl,{x:bl.x+waistIn*0.4,y:bl.y+BODY*0.5},{x:fl.x+waistIn,y:fl.y+BODY*0.55}],'#1b1613');
+
+  // 砧角：從右上端延伸出去的錐形
+  var hornTip=anvilPt(hl+HORN_LEN,0);
+  poly([br,fr,{x:hornTip.x,y:hornTip.y+6},{x:hornTip.x,y:hornTip.y-2}],'#2b2421');
+  poly([fr,{x:hornTip.x,y:hornTip.y+6},{x:hornTip.x,y:hornTip.y+14},{x:fr.x-6,y:fr.y+34}],'#1f1a17');
+
+  // 砧面
+  poly([bl,br,fr,fl],'#4a403a');
+  // 砧面受火光的後緣亮邊
+  sctx.strokeStyle='rgba(245,170,80,'+(0.26+heat*0.3)+')';
+  sctx.lineWidth=2.5;
+  sctx.beginPath(); sctx.moveTo(bl.x,bl.y); sctx.lineTo(br.x,br.y); sctx.stroke();
+  // 前緣稜線
+  sctx.strokeStyle='rgba(255,230,200,.16)'; sctx.lineWidth=1.5;
+  sctx.beginPath(); sctx.moveTo(fl.x,fl.y); sctx.lineTo(fr.x,fr.y); sctx.stroke();
+
+  // 硬斬孔（左下端）
+  var hx=anvilPt(-hl*0.68,-hw*0.1);
+  poly([
+    {x:hx.x-9,y:hx.y-5},{x:hx.x+1,y:hx.y-9},{x:hx.x+9,y:hx.y+5},{x:hx.x-1,y:hx.y+9}
+  ],'#140f0d');
+
+  // 砧面中線，標出「可用區」
+  sctx.strokeStyle='rgba(0,0,0,.22)'; sctx.lineWidth=1;
+  sctx.beginPath();
+  var m0=anvilPt(-hl,0), m1=anvilPt(hl,0);
+  sctx.moveTo(m0.x,m0.y); sctx.lineTo(m1.x,m1.y); sctx.stroke();
+}
+
+function drawBar(){
+  var i,a,b,d,s,c;
+  // 朝你的那一面（較暗）
+  for(i=0;i<SEG-1;i++){
+    d=faceDims(i); s=segS[i];
+    a=contactPt(i); b=contactPt(i+1);
+    var d2=faceDims(i+1), s2=segS[i+1];
+    var ha=d.side*SIDE_SCALE*s, hb=d2.side*SIDE_SCALE*s2;
+    c=heatColor(Math.max(0,heat-(i/SEG)*0.10));
+    poly([{x:a.x,y:a.y-ha},{x:b.x,y:b.y-hb},{x:b.x,y:b.y},{x:a.x,y:a.y}],shade(c,0.42));
+  }
+  // 頂面（最亮）
+  for(i=0;i<SEG-1;i++){
+    d=faceDims(i); s=segS[i];
+    var dn=faceDims(i+1), sn=segS[i+1];
+    a=contactPt(i); b=contactPt(i+1);
+    var ta={x:a.x,y:a.y-d.side*SIDE_SCALE*s};
+    var tb={x:b.x,y:b.y-dn.side*SIDE_SCALE*sn};
+    var ka=d.top*TOP_SCALE*s, kb=dn.top*TOP_SCALE*sn;
+    c=heatColor(Math.min(1,Math.max(0,heat-(i/SEG)*0.10)+0.06));
+    poly([
+      ta, tb,
+      {x:tb.x-PE.x*kb, y:tb.y-PE.y*kb},
+      {x:ta.x-PE.x*ka, y:ta.y-PE.y*ka}
+    ],c);
+  }
+  // 後緣高光
+  sctx.strokeStyle='rgba(255,240,210,'+(0.12+heat*0.3)+')'; sctx.lineWidth=1.3;
+  sctx.beginPath();
+  for(i=0;i<SEG;i++){
+    d=faceDims(i); s=segS[i];
+    var p=contactPt(i), k=d.top*TOP_SCALE*s;
+    var px=p.x-PE.x*k, py=p.y-d.side*SIDE_SCALE*s-PE.y*k;
+    if(i===0) sctx.moveTo(px,py); else sctx.lineTo(px,py);
+  }
+  sctx.stroke();
+
+  // 末端斷面，讓人看得出這是一根有四個面的柱子
+  var e=SEG-1, de=faceDims(e), se=segS[e], pe=contactPt(e);
+  var ke=de.top*TOP_SCALE*se, he=de.side*SIDE_SCALE*se;
+  poly([
+    {x:pe.x,y:pe.y-he},{x:pe.x-PE.x*ke,y:pe.y-he-PE.y*ke},
+    {x:pe.x-PE.x*ke,y:pe.y-PE.y*ke},{x:pe.x,y:pe.y}
+  ],shade(heatColor(heat),0.7),'rgba(255,230,200,.25)',1);
+
+  drawMarks();
+}
+
+function drawMarks(){
+  // 朝上那面的痕跡畫在頂面，朝你那面的痕跡畫在側面
+  drawFaceMarks(upFace(),'top');
+  drawFaceMarks(nearFace(),'side');
+}
+function drawFaceMarks(f,where){
+  var arr=faceMarks[f];
+  for(var i=0;i<arr.length;i++){
+    var mk=arr[i], sg=Math.max(0,Math.min(SEG-1,mk.seg));
+    var d=faceDims(sg), s=segS[sg], p=contactPt(sg);
+    var k=d.top*TOP_SCALE*s, hh=d.side*SIDE_SCALE*s;
+    var cx,cy,rx,ry;
+    if(where==='top'){
+      cx=p.x-PE.x*k*0.5; cy=p.y-hh-PE.y*k*0.5;
+      rx=Math.max(3,BAR_LEN/SEG*s*0.9); ry=Math.max(2,k*0.32);
+    } else {
+      cx=p.x; cy=p.y-hh*0.5;
+      rx=Math.max(3,BAR_LEN/SEG*s*0.9); ry=Math.max(2,hh*0.26);
+    }
+    if(mk.type==='dent'){
+      sctx.fillStyle='rgba(0,0,0,'+(0.10+mk.force*0.18)+')';
+      sctx.beginPath(); sctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2); sctx.fill();
+    } else {
+      sctx.lineWidth=2.4; sctx.strokeStyle='#120301';
+      sctx.beginPath();
+      sctx.moveTo(cx-rx*0.6,cy-ry); sctx.lineTo(cx+rx*0.3,cy);
+      sctx.lineTo(cx-rx*0.3,cy+ry*0.6); sctx.lineTo(cx+rx*0.6,cy+ry*1.2);
+      sctx.stroke();
+      sctx.fillStyle='rgba(196,80,62,.95)';
+      sctx.beginPath();
+      sctx.moveTo(cx,cy-ry-7); sctx.lineTo(cx-4,cy-ry-13); sctx.lineTo(cx+4,cy-ry-13);
+      sctx.closePath(); sctx.fill();
+    }
+  }
+}
+
+function drawTongs(h){
+  var p=contactPt(0), d=faceDims(0);
+  var gy=p.y-d.side*SIDE_SCALE*segS[0]*0.5;
+  sctx.lineCap='round';
+  sctx.strokeStyle='#4a3f39'; sctx.lineWidth=10;
+  sctx.beginPath();
+  sctx.moveTo(-50,h*1.05);
+  sctx.quadraticCurveTo(p.x-130,gy+92,p.x+8,gy-5);
+  sctx.stroke();
+  sctx.strokeStyle='#3c332e'; sctx.lineWidth=7;
+  sctx.beginPath();
+  sctx.moveTo(-36,h*1.14);
+  sctx.quadraticCurveTo(p.x-112,gy+112,p.x+10,gy+13);
+  sctx.stroke();
+  sctx.fillStyle='#2e2520';
+  poly([{x:-10,y:h*0.96},{x:p.x-170,y:h*1.0},{x:p.x-215,y:h*1.25},{x:-10,y:h*1.25}],'#2e2520');
+}
+
+function drawTargetMark(){
+  var t=topPt(targetSeg);
+  sctx.strokeStyle='#d9742b'; sctx.lineWidth=1.6;
+  sctx.beginPath();
+  sctx.moveTo(t.x-12,t.y); sctx.lineTo(t.x+12,t.y);
+  sctx.moveTo(t.x,t.y-9); sctx.lineTo(t.x,t.y+9);
+  sctx.stroke();
+  sctx.fillStyle='rgba(217,116,43,.45)';
+  sctx.fillRect(t.x-1,t.y-26,2,12);
+}
+
+function drawAim(){
+  if(st===S.IDLE) return;
+  var pred=skillRadius();
+  if(mode()==='hybrid'){
+    var over=Math.max(0,windupPeak-WINDUP_CAP_R*W())/(WINDUP_CAP_R*W());
+    pred+=(jitterAccum/dim.stage.h)*70+over*28;
+  }
+  var useRel=(mode()==='release'&&samples.length);
+  var ax=useRel?samples[samples.length-1].x:anchor.x;
+  var ay=useRel?samples[samples.length-1].y:anchor.y;
+  sctx.strokeStyle='rgba(233,221,211,.55)'; sctx.lineWidth=1;
+  sctx.beginPath();
+  sctx.moveTo(ax-8,ay); sctx.lineTo(ax+8,ay);
+  sctx.moveTo(ax,ay-8); sctx.lineTo(ax,ay+8);
+  sctx.stroke();
+  sctx.strokeStyle=pred>skillRadius()*1.6?'rgba(196,80,62,.8)':'rgba(233,221,211,.26)';
+  sctx.beginPath(); sctx.arc(ax,ay,Math.max(3,pred),0,Math.PI*2); sctx.stroke();
+}
+
+function drawHammer(w,h){
+  var hx,hy,lift=0;
+  var gripX=w*0.90, gripY=h*1.14;
+  if(st===S.ARMED||st===S.WIND||st===S.SWING){
+    var amp=Math.min(1,windupPeak/(WINDUP_CAP_R*W()));
+    lift=46+amp*86;
+    var useRel=(mode()==='release'&&samples.length);
+    hx=useRel?samples[samples.length-1].x:anchor.x;
+    hy=(useRel?samples[samples.length-1].y:anchor.y)-lift;
+    if(st===S.SWING) hy+=lift*0.45;
+  } else if(hammer.t<1){
+    hx=hammer.x;
+    hy=hammer.y-14-(1-Math.cos(hammer.t*Math.PI))*0.5*(26+hammer.force*78);
+  } else {
+    hx=w*0.83; hy=h*0.80;
+  }
+  var ang=Math.atan2(hy-gripY,hx-gripX);
+
+  sctx.save();
+  sctx.lineCap='round';
+  sctx.strokeStyle='#6b5a4d'; sctx.lineWidth=13;
+  sctx.beginPath(); sctx.moveTo(gripX,gripY); sctx.lineTo(hx,hy); sctx.stroke();
+  sctx.strokeStyle='#7d6b5c'; sctx.lineWidth=6;
+  sctx.beginPath(); sctx.moveTo(gripX,gripY); sctx.lineTo(hx,hy); sctx.stroke();
+  sctx.translate(hx,hy);
+  sctx.rotate(ang+Math.PI/2+(hammer.t<1?hammer.dir*0.22:lastTilt*0.1));
+  sctx.fillStyle='#9a8f86'; sctx.fillRect(-24,-13,48,26);
+  sctx.fillStyle='#b9aea4'; sctx.fillRect(-24,-13,48,7);
+  sctx.fillStyle='#6f655d'; sctx.fillRect(16,-13,8,26);
+  sctx.restore();
+
+  if(hammer.t<0.24){
+    var n=9+Math.round(hammer.force*22);
+    for(var i=0;i<n;i++){
+      var a=-Math.random()*Math.PI, r=Math.random()*(16+hammer.force*58);
+      sctx.fillStyle='rgba(248,212,106,'+(0.9-hammer.t*3)+')';
+      sctx.fillRect(hammer.x+Math.cos(a)*r,hammer.y+Math.sin(a)*r*0.55,2.2,2.2);
+    }
+  }
+}
+
+// 四個面的狀態盤：正方形的四條邊分別代表四個面
+function drawFaceWidget(w){
+  var box=76, bx=w-box-18, by=52;
+  sctx.fillStyle='rgba(13,9,8,.8)';
+  sctx.fillRect(bx-6,by-6,box+12,box+28);
+  sctx.strokeStyle='#372d28'; sctx.lineWidth=1;
+  sctx.strokeRect(bx-6,by-6,box+12,box+28);
+  sctx.fillStyle='#9b8b7f'; sctx.font='10px monospace';
+  sctx.fillText('四面狀態',bx-4,by-10);
+
+  var i=Math.max(0,Math.min(SEG-1,targetSeg));
+  var a=dims[hAxis()][i], b=dims[vAxis()][i];
+  var unit=(box-18)/1.45;
+  var cx=bx+box/2, cy=by+box/2;
+
+  sctx.save();
+  sctx.translate(cx,cy);
+  if(flipT<1) sctx.rotate(flipT*Math.PI/2*flipDir);
+  var hwd=a*unit/2, hht=b*unit/2;
+  sctx.fillStyle=heatColor(heat);
+  sctx.fillRect(-hwd,-hht,hwd*2,hht*2);
+  // 四條邊：上＝朝上面、右下＝朝你面、下＝朝下面、左上＝朝外面
+  var edges=[
+    {f:upFace(),   p:[[-hwd,-hht],[hwd,-hht]]},
+    {f:nearFace(), p:[[hwd,-hht],[hwd,hht]]},
+    {f:(ori+2)%4,  p:[[hwd,hht],[-hwd,hht]]},
+    {f:(ori+3)%4,  p:[[-hwd,hht],[-hwd,-hht]]}
+  ];
+  for(var k=0;k<edges.length;k++){
+    var cr=crackCount(edges[k].f);
+    sctx.strokeStyle = cr ? '#c4503e' : (k<2 ? '#f2a33c' : '#5d5048');
+    sctx.lineWidth = k<2 ? 3.5 : 2;
+    sctx.beginPath();
+    sctx.moveTo(edges[k].p[0][0],edges[k].p[0][1]);
+    sctx.lineTo(edges[k].p[1][0],edges[k].p[1][1]);
+    sctx.stroke();
+  }
+  sctx.restore();
+
+  var ratio=Math.max(a,b)/Math.max(0.01,Math.min(a,b));
+  sctx.fillStyle=ratio>1.35?'#c4503e':'#7aa05e';
+  sctx.fillText(ratio>1.35?'斷面偏扁':'斷面方正',bx-4,by+box+12);
+}
+
+function drawVignette(w,h){
+  var v=sctx.createRadialGradient(w*0.5,h*0.46,h*0.30,w*0.5,h*0.46,h*0.98);
+  v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(1,'rgba(0,0,0,.6)');
+  sctx.fillStyle=v; sctx.fillRect(0,0,w,h);
+}
+
+function drawTilt(){
+  var w=dim.tilt.w,h=dim.tilt.h;
+  tctx.clearRect(0,0,w,h);
+  tctx.fillStyle='#261f1c'; tctx.fillRect(0,h/2-4,w,8);
+  tctx.strokeStyle='#4b3e37';
+  tctx.beginPath(); tctx.moveTo(w/2,4); tctx.lineTo(w/2,h-4); tctx.stroke();
+  var t=(st===S.SWING&&samples.length)
+    ? Math.max(-1,Math.min(1,(samples[samples.length-1].x-anchor.x)/(W()*TILT_SPAN_R)))
+    : lastTilt;
+  var cx=w/2+t*(w/2-10);
+  tctx.fillStyle='#d9742b';
+  tctx.beginPath();
+  tctx.moveTo(cx,h/2-9); tctx.lineTo(cx+(t>=0?9:-9),h/2); tctx.lineTo(cx,h/2+9);
+  tctx.closePath(); tctx.fill();
+  tctx.fillStyle='#9b8b7f'; tctx.font='10px monospace';
+  tctx.fillText('往左下流',2,h-1);
+  tctx.textAlign='right'; tctx.fillText('往右上流',w-2,h-1); tctx.textAlign='left';
+}
+
+function pct(v){ return Math.round(v*100)+'%'; }
+function updateReadouts(){
+  var w=W();
+  $('fWind').style.width=(Math.min(1,(windupPeak/w)/WINDUP_CAP_R)*100)+'%';
+  $('vWind').textContent=pct(windupPeak/w);
+  $('fSpeed').style.width=(Math.min(1,peakSpeed/(w*SPEED_MAX_R))*100)+'%';
+  $('vSpeed').textContent=Math.round(peakSpeed)+' px/s';
+  $('fForce').style.width=(lastForce*100)+'%';
+  $('vForce').textContent=lastForce?pct(lastForce):'—';
+  $('fHeat').style.width=(heat*100)+'%';
+  $('vHeat').textContent=heat<COLD?'暗紅（太冷）':(heat>0.96?'亮黃白（接近燒損）':pct(heat));
+  $('stateTxt').textContent=st;
+  $('heatCount').textContent=heatCount;
+  $('hitCount').textContent=hitCount;
+}
+
+// ---------- 圖表 ----------
+function drawScatter(){
+  var w=dim.scat.w,h=dim.scat.h;
+  scctx.clearRect(0,0,w,h);
+  scctx.fillStyle='#0d0908'; scctx.fillRect(0,0,w,h);
+  var cx=w/2,cy=h/2,scale=Math.min(w,h)/2/90;
+  scctx.strokeStyle='#2e2622';
+  [10,20,40,80].forEach(function(r){ scctx.beginPath(); scctx.arc(cx,cy,r*scale,0,Math.PI*2); scctx.stroke(); });
+  scctx.strokeStyle='#4b3e37';
+  scctx.beginPath();
+  scctx.moveTo(cx-10,cy); scctx.lineTo(cx+10,cy);
+  scctx.moveTo(cx,cy-10); scctx.lineTo(cx,cy+10);
+  scctx.stroke();
+  scctx.fillStyle='#6a5a50'; scctx.font='10px monospace';
+  scctx.fillText('10',cx+10*scale+2,cy-2);
+  scctx.fillText('40',cx+40*scale+2,cy-2);
+
+  var arr=hits[mode()],off=0;
+  for(var i=0;i<arr.length;i++){
+    var p=arr[i], age=1-(arr.length-i)/arr.length*0.55;
+    scctx.fillStyle=heatColor(0.25+p.force*0.75);
+    scctx.globalAlpha=0.35+age*0.55;
+    var px=cx+p.dx*scale, py=cy+p.dy*scale;
+    if(px<4||px>w-4||py<4||py>h-4){
+      off++; scctx.globalAlpha=0.5;
+      scctx.fillRect(Math.max(2,Math.min(w-4,px)),Math.max(2,Math.min(h-4,py)),3,3);
+      continue;
+    }
+    scctx.beginPath(); scctx.arc(px,py,2.4+p.force*2.6,0,Math.PI*2); scctx.fill();
+  }
+  scctx.globalAlpha=1;
+  var s=statsFor(mode());
+  $('scatterCap').textContent='十字為目標點，圈為 10 / 20 / 40 px。點越亮越大代表力道越大。'+
+    (s.n?('　本模式 '+s.n+' 錘，平均徑向誤差 '+s.mean.toFixed(1)+' px。'):'　還沒有數據。')+
+    (off?('　有 '+off+' 錘偏出圖外，貼在邊緣以方塊表示。'):'');
+}
+function statsFor(m){
+  var a=hits[m],n=a.length;
+  if(!n) return {n:0,mean:0,sd:0,light:0,mid:0,heavy:0,cv:0};
+  var rs=a.map(function(p){return Math.sqrt(p.dx*p.dx+p.dy*p.dy);});
+  var mean=rs.reduce(function(x,y){return x+y;},0)/n;
+  var sd=Math.sqrt(rs.reduce(function(x,y){return x+(y-mean)*(y-mean);},0)/n);
+  function grp(lo,hi){
+    var g=a.filter(function(p){return p.force>=lo&&p.force<hi;});
+    if(!g.length) return 0;
+    return g.reduce(function(x,p){return x+Math.sqrt(p.dx*p.dx+p.dy*p.dy);},0)/g.length;
+  }
+  var iv=a.map(function(p){return p.interval;}).filter(function(v){return v>0&&v<4000;});
+  var cv=0;
+  if(iv.length>2){
+    var im=iv.reduce(function(x,y){return x+y;},0)/iv.length;
+    var isd=Math.sqrt(iv.reduce(function(x,y){return x+(y-im)*(y-im);},0)/iv.length);
+    cv=im?isd/im:0;
+  }
+  return {n:n,mean:mean,sd:sd,light:grp(0,0.34),mid:grp(0.34,0.67),heavy:grp(0.67,1.01),cv:cv};
+}
+function drawHist(){
+  var w=dim.hist.w,h=dim.hist.h;
+  hctx.clearRect(0,0,w,h);
+  hctx.fillStyle='#0d0908'; hctx.fillRect(0,0,w,h);
+  var arr=hits[mode()].map(function(p){return p.interval;}).filter(function(v){return v>0&&v<2000;});
+  var BINS=20,binMs=100,counts=new Array(BINS);
+  for(var z=0;z<BINS;z++) counts[z]=0;
+  arr.forEach(function(v){ counts[Math.min(BINS-1,Math.floor(v/binMs))]++; });
+  var max=1;
+  for(var z2=0;z2<BINS;z2++) if(counts[z2]>max) max=counts[z2];
+  var padL=30,padB=26,padT=14,bw=(w-padL-10)/BINS;
+  hctx.strokeStyle='#2e2622';
+  hctx.beginPath(); hctx.moveTo(padL,h-padB); hctx.lineTo(w-10,h-padB); hctx.stroke();
+  for(var i=0;i<BINS;i++){
+    var bh=(counts[i]/max)*(h-padB-padT);
+    hctx.fillStyle=counts[i]?'#d9742b':'#241d1a';
+    hctx.fillRect(padL+i*bw+1,h-padB-bh,bw-2,Math.max(counts[i]?2:1,bh));
+  }
+  hctx.fillStyle='#6a5a50'; hctx.font='10px monospace';
+  hctx.fillText('0',padL-4,h-padB+13);
+  hctx.fillText('1s',padL+10*bw-6,h-padB+13);
+  hctx.fillText('2s',w-22,h-padB+13);
+  hctx.fillText(String(max),4,padT+4);
+  var s=statsFor(mode());
+  $('histCap').textContent='橫軸為與前一錘的間隔（0 到 2 秒），縱軸為次數。'+
+    (s.cv?('　節奏變異係數 '+s.cv.toFixed(2)+'（越小越穩，低於 0.25 會觸發順手）。'):'　還沒有足夠數據。');
+}
+function drawCompare(){
+  var html='';
+  ['anchor','release','hybrid'].forEach(function(m){
+    var s=statsFor(m), cls=m===mode()?' class="active"':'';
+    html+='<tr'+cls+'><td>'+MODE_LABEL[m]+'</td><td class="num">'+s.n+'</td>'+
+      '<td class="num">'+(s.n?s.mean.toFixed(1):'—')+'</td>'+
+      '<td class="num">'+(s.n?s.sd.toFixed(1):'—')+'</td>'+
+      '<td class="num">'+(s.light?s.light.toFixed(1):'—')+'</td>'+
+      '<td class="num">'+(s.mid?s.mid.toFixed(1):'—')+'</td>'+
+      '<td class="num">'+(s.heavy?s.heavy.toFixed(1):'—')+'</td>'+
+      '<td class="num">'+(s.cv?s.cv.toFixed(2):'—')+'</td></tr>';
+  });
+  $('cmpBody').innerHTML=html;
+}
+
+// ---------- 控制 ----------
+$('skill').addEventListener('input',function(){ $('skillOut').textContent=this.value+' px'; });
+Array.prototype.forEach.call(document.querySelectorAll('input[name=mode]'),function(el){
+  el.addEventListener('change',function(){
+    drawScatter(); drawHist(); drawCompare();
+    setHint('落點模式切到「'+MODE_LABEL[mode()]+'」。打個二十錘再看散布圖。');
+  });
+});
+$('btnReheat').addEventListener('click',function(){
+  heat=0.92; heatCount++; burned=false;
+  setHint('回爐完成。火次 +1，表面又氧化掉一層。');
+});
+$('btnNewBar').addEventListener('click',function(){
+  dims=[newArr(),newArr()]; faceMarks=[[],[],[],[]];
+  heat=0.92; heatCount=1; burned=false; bend=0;
+  offAlong=0; offAcross=0; ori=0; flipT=1; targetSeg=20;
+  setHint('換了一條新料。四個面都是乾淨的。');
+});
+$('btnClear').addEventListener('click',function(){
+  hits[mode()]=[];
+  drawScatter(); drawHist(); drawCompare();
+  setHint('已清除「'+MODE_LABEL[mode()]+'」的數據。');
+});
+
+resizeAll(); drawCompare(); updateReadouts();
+requestAnimationFrame(loop);
+})();
+</script>
