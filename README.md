@@ -93,8 +93,8 @@ React 19 + TypeScript + three.js（React Three Fiber），Vite 建置。
 ## 換機器怎麼接手
 
 ```
-git clone https://github.com/glenwen-soohoo/-blacksmith.git
-cd -blacksmith && npm install && npm run dev
+git clone https://github.com/WenGlen/theBlacksmith.git
+cd theBlacksmith && npm install && npm run dev
 ```
 
 文件平常放在 `D:\Obsidian\其他\鐵匠`，要用 Obsidian 讀就把 clone 下來的內容放回那個路徑（或在新機器的 vault 裡對應的位置）。原型直接用瀏覽器開 `prototype/hammer-testbed.html` 就能跑。
