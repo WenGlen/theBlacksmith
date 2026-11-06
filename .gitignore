@@ -11,3 +11,8 @@ desktop.ini
 .vscode/
 *.swp
 *~
+
+# Node
+node_modules/
+dist/
+*.log
