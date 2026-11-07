@@ -21,27 +21,27 @@ export type LandingMode = 'anchor' | 'release' | 'hybrid';
 /** 調校參數。全部是畫面寬度的比例或毫秒。 */
 export const TUNING = {
   /** 死區：低於這個橫向位移當作手抖，不觸發後擺 */
-  deadzoneR: 0.015,
+  deadzoneR: 0.012,
   /** 連打要成立的最小單趟行程 */
-  comboMinR: 0.06,
+  comboMinR: 0.045,
   /** 兩錘之間的最小間隔，低於這個不算新的一錘 */
   comboGapMs: 70,
   /** 後擺幅度封頂，超過不再加力但開始累積偏移 */
-  windupCapR: 0.25,
-  /** 速度上限：每秒掃過三個畫面寬度算滿力 */
-  speedMaxR: 3.0,
+  windupCapR: 0.3,
+  /** 速度上限：每秒掃過這麼多個畫面寬度算滿力 */
+  speedMaxR: 2.2,
   /** 力道取樣窗：放開前這段時間內的峰值速度 */
-  peakWindowMs: 120,
+  peakWindowMs: 140,
   /** 收手判定：放開時游標離落點多近算把錘子放下 */
-  recallR: 0.03,
+  recallR: 0.05,
   /** 傾角的滿刻度位移 */
-  tiltSpanR: 0.12,
+  tiltSpanR: 0.16,
   /** 取樣環形緩衝保留多久 */
   sampleWindowMs: 200,
   /** hybrid 模式下，垂直抖動換算成偏移的係數 */
-  jitterToOffsetR: 0.078,
+  jitterToOffsetR: 0.055,
   /** hybrid 模式下，超出封頂的過量幅度換算成偏移的係數 */
-  overshootToOffsetR: 0.031,
+  overshootToOffsetR: 0.022,
 } as const;
 
 /** 一錘打出去的結果。座標都是畫面像素。 */
@@ -86,10 +86,10 @@ interface Sample {
 }
 
 const HINTS: Record<SwingState, string> = {
-  idle: '按住左鍵握錘，按下的那一點就是落點。',
-  armed: '往一邊甩蓄力。甩得越遠，這一錘的力道上限越高。',
-  windup: '反向甩回去出力，然後放開落錘。甩回原點附近再放開就是收手。',
-  swing: '放開落錘。按住不放持續來回就是連打。',
+  idle: '按住左鍵把錘子舉起來。',
+  armed: '往左或往右甩蓄力。甩得越遠，錘子舉得越高，力道上限也越高。',
+  windup: '反向甩回去出力，游標移到想打的那一段再放開。甩回原點附近停住放開就是收手。',
+  swing: '放開落錘，打在游標現在指的位置。按住不放持續來回就是連打。',
 };
 
 /**
@@ -121,8 +121,14 @@ export class SwingMachine {
   /** 這一次按住裡面已經連打了幾錘 */
   private comboInPress = 0;
 
-  /** 落點取樣方式 */
-  mode: LandingMode = 'hybrid';
+  /**
+   * 落點取樣方式。
+   *
+   * 預設是 release：按下只是「把錘子舉起來」，放開的那一點才是落點。
+   * 這讓按下到放開之間整段手勢都還能改主意，錘子是垂下去打的，
+   * 不是一按下就釘死在那一點。
+   */
+  mode: LandingMode = 'release';
   /** 技藝決定的基礎隨機偏移半徑，單位是畫面寬度的比例 */
   skillRadiusR = 0.012;
   /** 要不要啟用收手判定 */
@@ -321,9 +327,15 @@ export class SwingMachine {
       0.04,
       Math.min(Math.min(1, speed / (w * TUNING.speedMaxR)), forceCap),
     );
+    // 傾角：錘子從哪一側掃過來，金屬就往那一側跑。
+    //
+    // 以前量的是「放開點離按下點多遠」。落點改由放開位置決定之後，
+    // 那個量就等於落點本身，傾角會跟著落點一起動，失去獨立意義。
+    // 改成量這一趟掃的行程：起點是這一趟開始的地方，不是按下的地方，
+    // 所以連打時每一趟各自算各自的。
     const tilt = Math.max(
       -1,
-      Math.min(1, (x - this.anchor.x) / (w * TUNING.tiltSpanR)),
+      Math.min(1, (x - this.swingStartX) / (w * TUNING.tiltSpanR)),
     );
 
     const base =

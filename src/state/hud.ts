@@ -54,7 +54,7 @@ export interface HudState {
 
 export const useHud = create<HudState>((set) => ({
   swingState: 'idle',
-  hint: '按住左鍵握錘，按下的那一點就是落點。',
+  hint: '按住左鍵把錘子舉起來。',
   heat: 0.92,
   heatName: '白熱',
   windup: 0,
@@ -75,7 +75,7 @@ export const useHud = create<HudState>((set) => ({
   rhythmMs: 0,
   flash: null,
   scatterTick: 0,
-  mode: 'hybrid',
+  mode: 'release',
   skillR: 0.012,
   recallEnabled: true,
   usePeakWindow: true,

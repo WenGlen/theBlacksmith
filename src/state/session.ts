@@ -27,8 +27,10 @@ export interface Session {
   wp: Workpiece;
   swing: SwingMachine;
   scatter: ScatterLog;
-  /** 目前鎖定的落點，沒按下時是 null */
+  /** 目前的落點預覽，沒按下時是 null。按住期間會停在最後一個有效位置 */
   aim: Aim | null;
+  /** 游標現在指到棒子外面了：aim 還留著，但這時放開會打空 */
+  aimOff: boolean;
   /** 遮光中（按住 Tab） */
   dim: boolean;
   /** 收手次數 */
@@ -46,6 +48,7 @@ export function createSession(): Session {
     swing: new SwingMachine(),
     scatter: new ScatterLog(),
     aim: null,
+    aimOff: false,
     dim: false,
     recalls: 0,
     intervals: [],

@@ -10,26 +10,30 @@ export function Room() {
   const dim = useHud((s) => s.dim);
   return (
     <group>
-      {/* 傳統工房刻意保持昏暗。按住 Tab 把環境光再壓掉，就是 02 第三節的遮光判色 */}
-      <ambientLight intensity={dim ? 0.012 : 0.05} color="#4a3a52" />
+      {/*
+        亮度分兩檔，這是判色與看得見之間的解法（Glen 2026-11-07 說整個畫面偏暗）：
+        平常這一檔要看得見錘子、鐵砧、自己在做什麼；按住 Tab 壓到幾乎全黑，
+        那一檔才是 02 第三節要的遮光判色。把兩件事塞進同一個亮度本來就會互相吃掉。
+      */}
+      <ambientLight intensity={dim ? 0.014 : 0.17} color="#4a3a52" />
       <hemisphereLight
-        intensity={dim ? 0.01 : 0.04}
+        intensity={dim ? 0.012 : 0.11}
         color="#30405a"
         groundColor="#1a1008"
       />
 
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[9, 9]} />
-        <meshStandardMaterial color="#16120e" roughness={1} />
+        <meshStandardMaterial color="#231c15" roughness={1} />
       </mesh>
 
       <mesh position={[0, 1.6, -2.6]}>
         <boxGeometry args={[9, 3.2, 0.2]} />
-        <meshStandardMaterial color="#1a1512" roughness={0.95} />
+        <meshStandardMaterial color="#2b2219" roughness={0.95} />
       </mesh>
       <mesh position={[-2.8, 1.6, 0]}>
         <boxGeometry args={[0.2, 3.2, 9]} />
-        <meshStandardMaterial color="#17120f" roughness={0.95} />
+        <meshStandardMaterial color="#251d16" roughness={0.95} />
       </mesh>
     </group>
   );

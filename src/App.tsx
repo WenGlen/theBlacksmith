@@ -22,11 +22,14 @@ export function App() {
     <div className="app">
       <Canvas
         dpr={[1, 2]}
-        gl={{ antialias: true }}
+        // preserveDrawingBuffer 讓畫布可以被 toDataURL 取樣。
+        // 判色那條驗收（07 第七節第 4 條）不能靠眼睛看截圖決定，
+        // 要能直接量兩個溫度算出來的像素差多少。順便也能截圖存檔。
+        gl={{ antialias: true, preserveDrawingBuffer: true }}
         camera={{ position: EYE, fov: 52, near: 0.02, far: 40 }}
         onCreated={({ gl }) => {
           gl.toneMapping = THREE.ACESFilmicToneMapping;
-          gl.toneMappingExposure = 0.98;
+          gl.toneMappingExposure = 1.1;
         }}
       >
         <Stage session={session} />

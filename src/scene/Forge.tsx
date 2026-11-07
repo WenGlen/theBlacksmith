@@ -19,7 +19,7 @@ export function Forge() {
       Math.sin(t.current * 7.3) * 0.5 +
       Math.sin(t.current * 13.1 + 1.7) * 0.3 +
       Math.sin(t.current * 23.7 + 0.4) * 0.2;
-    if (lightRef.current) lightRef.current.intensity = 7.5 * (0.84 + 0.16 * n);
+    if (lightRef.current) lightRef.current.intensity = 11.5 * (0.84 + 0.16 * n);
   });
 
   return (
@@ -42,8 +42,8 @@ export function Forge() {
         ref={lightRef}
         position={[0, 0.92, 0]}
         color="#ff7320"
-        intensity={7.5}
-        distance={7}
+        intensity={11.5}
+        distance={8.5}
         decay={2}
       />
     </group>

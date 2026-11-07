@@ -8,8 +8,13 @@ export const FACE_T = 0.045;
 export const FACE_LEN = 0.46;
 /** 砧面寬度（沿 x） */
 export const FACE_W = 0.125;
-/** 整個鍛打工位繞 Y 轉這麼多，讓鐵砧在畫面上是斜的 */
-export const STATION_YAW = -0.38;
+/**
+ * 整個鍛打工位繞 Y 轉這麼多，讓鐵砧在畫面上是斜的。
+ *
+ * 2026-11-07 從 -0.38 加到 -0.62：棒子在畫面上要夠斜，
+ * A/D 推進的方向才看得出來是沿著棒子走，不是在螢幕上平移。
+ */
+export const STATION_YAW = -0.62;
 /** 工位在場景裡的位置 */
 export const STATION_POS: [number, number, number] = [0.02, 0, -0.32];
 /** 鏡頭：站在砧前低頭看 */
