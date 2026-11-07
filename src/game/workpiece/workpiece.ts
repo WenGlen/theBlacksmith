@@ -8,7 +8,13 @@
  *
  * 這一層不認識 three.js。網格生成在 `geometry.ts`，一樣不認識 three.js。
  */
-import { COLD_THRESHOLD, plasticity } from '../thermal/heat';
+import {
+  COLD_THRESHOLD,
+  SCORCH_RATE,
+  SCORCH_THRESHOLD,
+  plasticity,
+  scorchPenalty,
+} from '../thermal/heat';
 
 /** 沿脊線切幾段 */
 export const SEG = 48;
@@ -36,6 +42,15 @@ const ELONG_RATIO = 0.55;
 const MIN_RADIUS = 0.0016;
 /** 每一錘帶走多少熱 */
 const HEAT_PER_HIT = 0.035;
+/**
+ * 環境散熱係數。
+ *
+ * 第 0 刀設 0.018，那時沒有爐子所以無所謂；量過之後發現一火可以撐 56 秒，
+ * 等於玩家可以放著去泡茶 —— 時間壓力完全不存在。
+ * 調到 0.037 之後一火大約 27 秒，打得完一輪修形但不能發呆
+ * （08 第五節驗收 2）。
+ */
+const COOL_RATE = 0.037;
 
 /** 一錘的輸入 */
 export interface StrikeInput {
@@ -75,6 +90,8 @@ export class Workpiece {
   readonly radii = new Float32Array(SEG * RADIAL);
   /** 每段的溫度 0..1 */
   readonly temp = new Float32Array(SEG);
+  /** 每段的燒損 0..1。只增不減，換新料才歸零 */
+  readonly scorch = new Float32Array(SEG);
 
   /** 繞長軸的旋轉（弧度）。Q／E 控制，連續 */
   roll = 0;
@@ -105,6 +122,7 @@ export class Workpiece {
     for (let i = 0; i < SEG; i++) {
       this.spineZ[i] = -BAR_LENGTH / 2 + i * step;
       this.temp[i] = 0.92;
+      this.scorch[i] = 0;
       for (let k = 0; k < RADIAL; k++) {
         this.radii[i * RADIAL + k] = squareRadius(k * DTHETA, BAR_HALF);
       }
@@ -117,10 +135,39 @@ export class Workpiece {
     this.version++;
   }
 
-  /** 回爐。測試台捷徑，正式版這裡是爐火工位的「持」 */
+  /**
+   * 把某一段加熱。爐火工位的「持」每幀呼叫這個。
+   *
+   * 超過 SCORCH_THRESHOLD 的部分不會讓溫度一直往上衝，
+   * 而是轉成燒損累積 —— 爐子再旺也不會把鐵燒成 2 倍熱，
+   * 它會先把晶粒燒壞。
+   *
+   * @param seg 第幾段
+   * @param amount 這一幀要加多少溫度
+   * @param dtSec 這一幀多久，用來算燒損速率
+   */
+  heatSegment(seg: number, amount: number, dtSec: number): void {
+    if (seg < 0 || seg >= SEG || amount <= 0) return;
+    const before = this.temp[seg];
+    const after = Math.min(1, before + amount);
+    this.temp[seg] = after;
+    if (after > SCORCH_THRESHOLD) {
+      const over = (after - SCORCH_THRESHOLD) / (1 - SCORCH_THRESHOLD);
+      this.scorch[seg] = Math.min(1, this.scorch[seg] + over * SCORCH_RATE * dtSec);
+    }
+  }
+
+  /** 整根回到鍛造溫度。測試與自檢用，玩家要靠爐子 */
   reheat(): void {
     for (let i = 0; i < SEG; i++) this.temp[i] = 0.93;
     this.heats++;
+  }
+
+  /** 這一根最嚴重的燒損 */
+  get worstScorch(): number {
+    let m = 0;
+    for (let i = 0; i < SEG; i++) m = Math.max(m, this.scorch[i]);
+    return m;
   }
 
   /** 料目前多長 */
@@ -141,7 +188,7 @@ export class Workpiece {
       const thin = 1 + (BAR_HALF - this.meanRadius(i)) * 40;
       this.temp[i] = Math.max(
         0,
-        this.temp[i] - dtSec * 0.018 * (0.3 + 0.7 * this.temp[i]) * Math.max(0.6, thin),
+        this.temp[i] - dtSec * COOL_RATE * (0.3 + 0.7 * this.temp[i]) * Math.max(0.6, thin),
       );
     }
   }
@@ -321,7 +368,9 @@ export class Workpiece {
     this.hits++;
     this.version++;
 
-    const cold = t < COLD_THRESHOLD && force > 0.22;
+    // 燒損過的那一段，安全溫度整個往上推：看起來還夠熱，打下去卻裂
+    const coldLimit = COLD_THRESHOLD + scorchPenalty(this.scorch[seg]);
+    const cold = t < coldLimit && force > 0.22;
     if (cold) this.cracks++;
 
     return {

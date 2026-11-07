@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "check:model": "tsx scripts/check-model.ts"
+    "check:model": "tsx scripts/check-model.ts",
+    "check:heat": "tsx scripts/check-heat.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",

@@ -8,6 +8,7 @@
 import { create } from 'zustand';
 import type { LandingMode, SwingState } from '../game/input/swing';
 import { RADIAL } from '../game/workpiece/workpiece';
+import type { Station } from '../scene/stations';
 
 export interface FlashMsg {
   msg: string;
@@ -37,6 +38,19 @@ export interface HudState {
   lastForce: number;
   lastTilt: number;
   rhythmMs: number;
+  /* 第 1 刀：工位與爐火 */
+  station: Station;
+  travelling: boolean;
+  air: number;
+  core: number;
+  insert: number;
+  scorch: number;
+  /** 目標輪廓逐段誤差（公尺），正的是太粗 */
+  profileErr: number[];
+  /** 逐段落在容差內的比例。HUD 不准把它印成百分比 */
+  profileWithin: number;
+  profileLenErr: number;
+  profileDone: boolean;
   /* 事件推過來的 */
   flash: FlashMsg | null;
   scatterTick: number;
@@ -73,6 +87,16 @@ export const useHud = create<HudState>((set) => ({
   lastForce: 0,
   lastTilt: 0,
   rhythmMs: 0,
+  station: 'anvil',
+  travelling: false,
+  air: 0.35,
+  core: 0.52,
+  insert: 0,
+  scorch: 0,
+  profileErr: [],
+  profileWithin: 0,
+  profileLenErr: -0.16,
+  profileDone: false,
   flash: null,
   scatterTick: 0,
   mode: 'release',

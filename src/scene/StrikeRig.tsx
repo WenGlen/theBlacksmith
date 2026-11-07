@@ -15,10 +15,20 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { TapHoldAxis } from '../game/input/tapHold';
 import { heatColor, heatLabel } from '../game/thermal/heat';
+import { fitProfile } from '../game/target/profile';
 import { RADIAL, SEG } from '../game/workpiece/workpiece';
 import { useHud } from '../state/hud';
 import type { Session } from '../state/session';
-import { ANVIL_TOP, EYE, LOOK_AT } from './layout';
+import type { Station } from './stations';
+import {
+  ANVIL_TOP,
+  EYE,
+  FORGE_EYE,
+  FORGE_LOOK,
+  LOOK_AT,
+  TRAVEL_SEC,
+} from './layout';
+import { anvilPose, fireDepthAt, forgePose } from './stations';
 
 interface Props {
   session: Session;
@@ -112,14 +122,53 @@ export function StrikeRig({ session, barRef }: Props) {
   const syncAcc = useRef(0);
   const layersDone = useRef(false);
 
-  const baseQuat = useMemo(() => {
-    const m = new THREE.Matrix4().lookAt(
-      new THREE.Vector3(...EYE),
-      new THREE.Vector3(...LOOK_AT),
-      UP,
-    );
-    return new THREE.Quaternion().setFromRotationMatrix(m);
+  /** 兩個工位各自的鏡頭。走路期間在這兩組之間插值 */
+  const views = useMemo(() => {
+    const make = (eye: readonly number[], look: readonly number[]) => {
+      const m = new THREE.Matrix4().lookAt(
+        new THREE.Vector3(eye[0], eye[1], eye[2]),
+        new THREE.Vector3(look[0], look[1], look[2]),
+        UP,
+      );
+      return {
+        eye: new THREE.Vector3(eye[0], eye[1], eye[2]),
+        quat: new THREE.Quaternion().setFromRotationMatrix(m),
+      };
+    };
+    return { anvil: make(EYE, LOOK_AT), forge: make(FORGE_EYE, FORGE_LOOK) };
   }, []);
+
+  /** 工件姿態每幀重算，兩個工位共用這兩個暫存 */
+  const pose = useMemo(
+    () => ({
+      pos: new THREE.Vector3(),
+      quat: new THREE.Quaternion(),
+      posB: new THREE.Vector3(),
+      quatB: new THREE.Quaternion(),
+      eye: new THREE.Vector3(),
+      quatC: new THREE.Quaternion(),
+    }),
+    [],
+  );
+  /** 爐前按住左鍵時，用滑鼠上下調整插入深度 */
+  const insertDrag = useRef({ active: false, y0: 0, base: 0 });
+  /** 按著不放的鍵。空白鍵送風要每幀讀，不能走事件 */
+  const keys = useRef({ space: false });
+
+  /** 走到另一個工位。走路期間不能操作，手上的料繼續降溫 */
+  const travelTo = (to: Station): void => {
+    if (session.travel > 0 || session.station === to) return;
+    session.swing.cancel();
+    session.aim = null;
+    session.aimOff = false;
+    insertDrag.current.active = false;
+    session.travelFrom = session.station;
+    session.station = to;
+    session.travel = TRAVEL_SEC;
+    if (to === 'forge') session.wp.heats += 1;
+    useHud.getState().patch({ station: to, travelling: true, heats: session.wp.heats });
+    useHud.getState().setFlash(to === 'forge' ? '走向爐火' : '走回鐵砧', 'flag');
+  };
 
   /**
    * 螢幕座標換成「要打工件的哪一段」。
@@ -404,10 +453,16 @@ export function StrikeRig({ session, barRef }: Props) {
         return;
       }
       if (e.button !== 0) return;
+      if (session.travel > 0) return;
       try {
         el.setPointerCapture?.(e.pointerId);
       } catch {
         /* 合成事件或沒有 active pointer 時會丟，忽略即可 */
+      }
+      if (session.station === 'forge') {
+        // 爐前的動詞是「持」：按住把料壓進火心，放開就夾出來
+        insertDrag.current = { active: true, y0: e.clientY, base: session.insert };
+        return;
       }
       session.swing.setViewport(el.clientWidth, el.clientHeight);
       session.swing.pointerDown(e.clientX, e.clientY, now());
@@ -429,6 +484,15 @@ export function StrikeRig({ session, barRef }: Props) {
         look.current.ly = e.clientY;
         return;
       }
+      if (session.station === 'forge') {
+        const d = insertDrag.current;
+        if (d.active) {
+          // 往上推 = 推得更深。半個畫面高走完整個行程
+          const span = Math.max(1, el.clientHeight * 0.5);
+          session.insert = clamp(d.base + (d.y0 - e.clientY) / span, 0, 1);
+        }
+        return;
+      }
       session.swing.pointerMove(e.clientX, e.clientY, now());
       if (session.swing.state !== 'idle') aimAtRef.current(e.clientX, e.clientY);
     };
@@ -436,6 +500,10 @@ export function StrikeRig({ session, barRef }: Props) {
     const onUp = (e: PointerEvent) => {
       if (e.button === 2 || look.current.dragging) {
         look.current.dragging = false;
+        return;
+      }
+      if (session.station === 'forge') {
+        insertDrag.current.active = false;
         return;
       }
       session.swing.pointerUp(e.clientX, e.clientY, now());
@@ -458,14 +526,18 @@ export function StrikeRig({ session, barRef }: Props) {
           session.dim = true;
           useHud.getState().patch({ dim: true });
           break;
-        case 'KeyR':
-          session.wp.reheat();
-          useHud.getState().patch({ heats: session.wp.heats });
-          useHud.getState().setFlash('回爐', 'good');
+        case 'Space':
+          e.preventDefault();
+          keys.current.space = true;
+          break;
+        case 'KeyF':
+          travelTo(session.station === 'anvil' ? 'forge' : 'anvil');
           break;
         case 'KeyN':
           session.wp.reset();
+          session.forge.reset();
           session.intervals.length = 0;
+          session.insert = 0;
           useHud.getState().setFlash('換一根新料', 'flag');
           break;
       }
@@ -482,6 +554,9 @@ export function StrikeRig({ session, barRef }: Props) {
           session.dim = false;
           useHud.getState().patch({ dim: false });
           break;
+        case 'Space':
+          keys.current.space = false;
+          break;
       }
     };
 
@@ -489,6 +564,8 @@ export function StrikeRig({ session, barRef }: Props) {
       rollAxis.clear();
       feedAxis.clear();
       session.swing.cancel();
+      keys.current.space = false;
+      insertDrag.current.active = false;
     };
 
     el.addEventListener('pointerdown', onDown);
@@ -546,11 +623,57 @@ export function StrikeRig({ session, barRef }: Props) {
 
     wp.cool(dt);
 
+    /* 工位與走動 */
+    const travelling = session.travel > 0;
+    if (travelling) {
+      session.travel = Math.max(0, session.travel - dt);
+    }
+    // 0 = 還在出發地，1 = 已經到了。平滑一下，不然走路像瞬移
+    const raw = travelling ? 1 - session.travel / TRAVEL_SEC : 1;
+    const k = raw * raw * (3 - 2 * raw);
+    const here = session.station;
+    const from = session.travelFrom;
+
+    /* 爐火：風量與火心每幀都在跑，不管人在不在爐前 */
+    session.forge.setPumping(!travelling && here === 'forge' && keys.current.space);
+    session.forge.update(dt);
+
+    // 沒按住左鍵就把料夾出火心。爐前的「持」就是這個意思
+    if (!insertDrag.current.active && session.insert > 0.001) {
+      session.insert = Math.max(0, session.insert - dt * 1.7);
+    }
+
     const bar = barRef.current;
     if (bar) {
-      bar.rotation.set(0, 0, wp.roll);
-      bar.position.set(0, ANVIL_TOP + wp.restHeight(wp.roll), wp.feed);
+      // 兩個工位各自算世界座標，走路期間在兩者之間插值 —— 料是被夾著走的
+      anvilPose(wp, pose.pos, pose.quat);
+      forgePose(wp, session.insert, pose.posB, pose.quatB);
+      const toForge = here === 'forge';
+      if (travelling) {
+        const a = from === 'forge' ? pose.posB : pose.pos;
+        const b = toForge ? pose.posB : pose.pos;
+        const qa = from === 'forge' ? pose.quatB : pose.quat;
+        const qb = toForge ? pose.quatB : pose.quat;
+        bar.position.lerpVectors(a, b, k);
+        bar.quaternion.copy(qa).slerp(qb, k);
+      } else if (toForge) {
+        bar.position.copy(pose.posB);
+        bar.quaternion.copy(pose.quatB);
+      } else {
+        bar.position.copy(pose.pos);
+        bar.quaternion.copy(pose.quat);
+      }
       bar.updateMatrixWorld();
+
+      /* 加熱：只有真的推進火裡的那幾段會升溫 */
+      if (!travelling && toForge) {
+        for (let i = 0; i < SEG; i++) {
+          const depth = fireDepthAt(wp, i, bar.position, bar.quaternion);
+          if (depth <= 0) continue;
+          const gain = session.forge.gainAt(depth, wp.temp[i], dt);
+          if (gain > 0) wp.heatSegment(i, gain, dt);
+        }
+      }
 
       // 熱鐵自己會照亮砧面。emissive 只讓它自己亮，不會打光出去，
       // 少了這盞燈，鐵砧在暗房裡是全黑的 —— 真實鍛造間不是這樣。
@@ -565,13 +688,17 @@ export function StrikeRig({ session, barRef }: Props) {
       }
     }
 
-    /* 鏡頭：動作進行中完全不動，只有衝擊震動 */
+    /* 鏡頭：動作進行中完全不動，只有衝擊震動與走動時的過場 */
+    const vFrom = views[travelling ? from : here];
+    const vTo = views[here];
+    pose.eye.lerpVectors(vFrom.eye, vTo.eye, k);
+    pose.quatC.copy(vFrom.quat).slerp(vTo.quat, k);
     const q = new THREE.Quaternion()
       .setFromAxisAngle(UP, look.current.yaw)
-      .multiply(baseQuat)
+      .multiply(pose.quatC)
       .multiply(new THREE.Quaternion().setFromAxisAngle(LOCAL_X, look.current.pitch));
     camera.quaternion.copy(q);
-    camera.position.set(EYE[0], EYE[1], EYE[2]);
+    camera.position.copy(pose.eye);
     if (shake.current > 0.002) {
       camera.position.x += (Math.random() - 0.5) * shake.current * 0.022;
       camera.position.y += (Math.random() - 0.5) * shake.current * 0.022;
@@ -699,9 +826,20 @@ export function StrikeRig({ session, barRef }: Props) {
       const ext = wp.sectionExtent(seg);
       const poly: number[] = [];
       for (let k = 0; k < RADIAL; k++) poly.push(wp.radii[seg * RADIAL + k] * 1000);
+      const fit = fitProfile(wp, session.target);
       useHud.getState().patch({
         heat: wp.temp[seg],
         heatName: heatLabel(wp.temp[seg]),
+        station: session.station,
+        travelling: session.travel > 0,
+        air: session.forge.air,
+        core: session.forge.core,
+        insert: session.insert,
+        scorch: wp.worstScorch,
+        profileErr: Array.from(fit.perSeg),
+        profileWithin: fit.within,
+        profileLenErr: fit.lengthErr,
+        profileDone: fit.done,
         windup: swing.windupRatio,
         overshoot: swing.isOvershooting,
         roll: wp.roll,

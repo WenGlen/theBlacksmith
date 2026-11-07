@@ -7,10 +7,12 @@
  */
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import type { PointLight } from 'three';
+import type { Mesh, MeshStandardMaterial, PointLight } from 'three';
+import type { Forge as ForgeModel } from '../game/forge/forge';
 
-export function Forge() {
+export function Forge({ forge }: { forge: ForgeModel }) {
   const lightRef = useRef<PointLight>(null);
+  const coalRef = useRef<Mesh>(null);
   const t = useRef(0);
 
   useFrame((_, dt) => {
@@ -19,7 +21,17 @@ export function Forge() {
       Math.sin(t.current * 7.3) * 0.5 +
       Math.sin(t.current * 13.1 + 1.7) * 0.3 +
       Math.sin(t.current * 23.7 + 0.4) * 0.2;
-    if (lightRef.current) lightRef.current.intensity = 15.5 * (0.84 + 0.16 * n);
+    if (lightRef.current) {
+      // 送風會讓爐火變旺，這是玩家唯一看得到的風量回饋
+      // 這盞燈是整個房間的主光源，鐵砧那邊全靠它，不能為了爐前的構圖調低。
+      // 近距離過曝的其實是炭床自己的 emissive，壓那個就好
+      const strength = 11 + 9 * forge.glow;
+      lightRef.current.intensity = strength * (0.84 + 0.16 * n);
+    }
+    if (coalRef.current) {
+      const m = coalRef.current.material as MeshStandardMaterial;
+      m.emissiveIntensity = 0.1 + 0.26 * forge.glow;
+    }
   });
 
   return (
@@ -29,12 +41,12 @@ export function Forge() {
         <meshStandardMaterial color="#241d19" roughness={0.95} />
       </mesh>
       {/* 炭床 */}
-      <mesh position={[0, 0.775, 0]}>
+      <mesh ref={coalRef} position={[0, 0.775, 0]}>
         <boxGeometry args={[0.44, 0.05, 0.36]} />
         <meshStandardMaterial
-          color="#d9500e"
-          emissive="#ff7a22"
-          emissiveIntensity={1.9}
+          color="#5a1c06"
+          emissive="#ff5c14"
+          emissiveIntensity={0.18}
           roughness={1}
         />
       </mesh>
@@ -42,7 +54,7 @@ export function Forge() {
         ref={lightRef}
         position={[0, 0.92, 0]}
         color="#ff7320"
-        intensity={15.5}
+        intensity={15}
         distance={8.5}
         decay={2}
       />
