@@ -23,7 +23,8 @@
 - **3D 版（第 0 刀）**：`npm install && npm run dev`，開 http://localhost:5180
 - **模型自檢**：`npm run check:model`，驗體積守恆、延展方向、網格繞序
 - **2D 原型（揮錘測試台）**：`prototype/hammer-testbed.html`，用瀏覽器直接開，不需要任何建置
-- **線上版**：https://claude.ai/artifact/Wk1qCEUwb9daxcoLFRhUUt （私人連結，只有 Glen 開得起來）
+- **線上版（3D 第 0 刀）**：https://wenglen.github.io/theBlacksmith/ ，推到 main 會自動建置部署。滑鼠拖曳加鍵盤操作，手機開不起來玩
+- **線上版（2D 原型）**：https://claude.ai/artifact/Wk1qCEUwb9daxcoLFRhUUt （私人連結，只有 Glen 開得起來）
 - **從哪份看起**：[00_總覽.md](00_總覽.md)
 
 ---
