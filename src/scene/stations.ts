@@ -12,9 +12,10 @@ import {
   FIRE_AXIS,
   FIRE_CENTER,
   FIRE_OUTER,
-  INSERT_BASE,
+  LIFT_OUT,
   STATION_POS,
   STATION_YAW,
+  TAIL_KEEP,
 } from './layout';
 
 export type Station = 'anvil' | 'forge';
@@ -68,13 +69,15 @@ export function forgePose(
   outQuat: THREE.Quaternion,
 ): void {
   const tipLocalZ = wp.spineZ[SEG - 1];
-  const along =
-    wp.length * Math.max(0, Math.min(1, insert)) +
-    INSERT_BASE * Math.max(0, Math.min(1, withdraw));
+  const ins = Math.max(0, Math.min(1, insert));
+  const out = Math.max(0, Math.min(1, withdraw));
+  // 火心落在料的哪個位置。留 TAIL_KEEP 不推到底，因為手就在那一端
+  const along = (wp.length - TAIL_KEEP) * ins;
   // 先決定末端要落在哪，再往回推出原點
   outPos.copy(fire).addScaledVector(axis, along);
   // 料是埋在炭裡的，不是架在上面。半陷進去才看得出「插進火心」
-  outPos.y = COAL_TOP - 0.007 + wp.restHeight(wp.roll) * 0.35;
+  // 夾出來是往上抬，不是往後滑。沿著軸滑會讓料在畫面上整根衝出去
+  outPos.y = COAL_TOP - 0.007 + wp.restHeight(wp.roll) * 0.35 + LIFT_OUT * out;
   outPos.addScaledVector(axis, -tipLocalZ);
   outQuat
     .setFromUnitVectors(Z, axis)

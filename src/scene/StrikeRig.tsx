@@ -675,12 +675,16 @@ export function StrikeRig({ session, barRef }: Props) {
       }
       bar.updateMatrixWorld();
 
-      /* 加熱：只有真的推進火裡的那幾段會升溫 */
-      if (!travelling && toForge) {
+      /*
+        加熱：只有真的推進火裡的那幾段會升溫，而且只在按住左鍵的時候。
+        綁在「持」上是 02 第四節給這個工位定的動詞 —— 放開就等於夾起來了。
+      */
+      const hold = 1 - session.withdraw;
+      if (!travelling && toForge && hold > 0.02) {
         for (let i = 0; i < SEG; i++) {
           const depth = fireDepthAt(wp, i, bar.position, bar.quaternion);
           if (depth <= 0) continue;
-          const gain = session.forge.gainAt(depth, wp.temp[i], dt);
+          const gain = session.forge.gainAt(depth, wp.temp[i], dt) * hold;
           if (gain > 0) wp.heatSegment(i, gain, dt);
         }
       }
