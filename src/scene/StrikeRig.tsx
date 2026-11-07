@@ -40,6 +40,28 @@ const PLANE_FWD = new THREE.Vector3(0, 0, 1);
 /** 游標可以超出工件兩端多少（佔全長的比例）還算瞄在上面 */
 const END_SLACK = 0.04;
 
+/**
+ * 握錘那隻手在鏡頭座標裡的位置（右、下、前）。
+ *
+ * 錘子不是浮在砧面上方的道具，是握在自己手裡的東西。手的位置固定在
+ * 鏡頭附近，錘頭繞著手畫弧落到鐵上 —— 這樣「第一人稱在揮」才成立。
+ * 之前把錘子直接畫在落點正上方，不管弧度怎麼調角度都會怪，
+ * 因為那個姿勢根本沒有人握著（Glen 2026-11-07 第二輪）。
+ */
+const HAND_LOCAL = new THREE.Vector3(0.22, -0.46, -0.3);
+
+/**
+ * 後擺拉到滿時，錘頭繞著手往後轉多少弧度。
+ *
+ * 只有 0.4 rad 看起來很小，但手在畫面外的右下角，力臂長 0.7 m 以上，
+ * 這個角度在畫面上就是錘頭走掉約三成的畫面高度，很明顯。
+ * 再大一點，瞄近端時錘頭會從畫面上緣出去（量過：0.44 時近端 −74 px）。
+ */
+const MAX_SWING = 0.4;
+
+/** 錘頭停在鐵面上方這麼高，免得插進工件裡 */
+const HEAD_CLEAR = 0.026;
+
 export function StrikeRig({ session, barRef }: Props) {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const gl = useThree((s) => s.gl);
@@ -52,6 +74,19 @@ export function StrikeRig({ session, barRef }: Props) {
   const sparkRef = useRef<THREE.PointLight>(null);
   const barLightRef = useRef<THREE.PointLight>(null);
   const ringRef = useRef<THREE.Mesh>(null);
+  const handleRef = useRef<THREE.Mesh>(null);
+  /** 每幀重用，避免在迴圈裡配置 */
+  const tmp = useMemo(
+    () => ({
+      hand: new THREE.Vector3(),
+      target: new THREE.Vector3(),
+      arm: new THREE.Vector3(),
+      axis: new THREE.Vector3(),
+      dir: new THREE.Vector3(),
+      q: new THREE.Quaternion(),
+    }),
+    [],
+  );
 
   const ray = useMemo(() => new THREE.Raycaster(), []);
   const ndc = useMemo(() => new THREE.Vector2(), []);
@@ -220,7 +255,7 @@ export function StrikeRig({ session, barRef }: Props) {
 
         const land = aimAt(hit.landing.x, hit.landing.y);
         shake.current = Math.max(shake.current, hit.force);
-        hammerAnim.current = { t: 0, lift: 0.04 + 0.22 * swing.windupRatio };
+        hammerAnim.current = { t: 0, lift: 0.1 + 0.9 * swing.windupRatio };
 
         if (!land || !bar) {
           useHud.getState().setFlash('打在砧面上', 'bad');
@@ -538,8 +573,8 @@ export function StrikeRig({ session, barRef }: Props) {
       }
     }
 
-    /* 錘子 */
-    if (hammerRef.current) {
+    /* 錘子：握在手裡，繞著手畫弧 */
+    if (hammerRef.current && handleRef.current) {
       const anim = hammerAnim.current;
       let lift = 0;
       let show = false;
@@ -550,20 +585,35 @@ export function StrikeRig({ session, barRef }: Props) {
         lift = anim.lift * k;
         show = true;
       } else if (armed) {
-        // 上限壓在 0.26 m。鏡頭在 1.5 m、砧面 0.81 m，
-        // 再高錘頭就頂到畫面上緣，舉起來反而看不見
-        lift = 0.04 + 0.22 * swing.windupRatio;
+        lift = 0.1 + 0.9 * swing.windupRatio;
         show = true;
       }
       hammerRef.current.visible = show && aim !== null;
+
       if (aim && show) {
-        // 滑鼠是左右甩，畫面上的錘子只上下動（Glen 2026-11-07）。
-        // 橫向位置完全跟著落點走，舉多高完全由後擺幅度決定，
-        // 中間不再摻任何會讓它自己飄的量 —— 以前那個 lift * 0.42 的
-        // 縱深位移，在斜放的棒子上看起來就是錘子在左右滑。
-        hammerRef.current.position.set(aim.x, aim.y + lift + 0.03, aim.z);
-        // 舉高的同時往自己這邊倒，握柄才不會戳出畫面 —— 真的舉錘也是繞手肘畫弧
-        hammerRef.current.rotation.set(-0.55 - lift * 2.6, 0, 0);
+        // 手固定在鏡頭附近。camera 的位置與朝向這一幀上面已經設好了
+        camera.updateMatrixWorld();
+        tmp.hand.copy(HAND_LOCAL).applyMatrix4(camera.matrixWorld);
+        tmp.target.set(aim.x, aim.y + HEAD_CLEAR, aim.z);
+
+        // 手指向落點的向量，就是放下時的錘子。後擺就是把它繞著手往上轉。
+        tmp.arm.subVectors(tmp.target, tmp.hand);
+        const reach = tmp.arm.length();
+        if (reach > 1e-4) {
+          // 轉軸取水平、且垂直於 arm 所在的鉛直面，這樣轉起來是「抬高」
+          tmp.axis.crossVectors(tmp.arm, UP);
+          if (tmp.axis.lengthSq() > 1e-8) {
+            tmp.axis.normalize();
+            tmp.arm.applyAxisAngle(tmp.axis, lift * MAX_SWING);
+          }
+          // 錘頭落在弧上，握柄從錘頭指回手裡
+          hammerRef.current.position.copy(tmp.hand).add(tmp.arm);
+          tmp.dir.copy(tmp.arm).multiplyScalar(-1).normalize();
+          hammerRef.current.quaternion.copy(tmp.q.setFromUnitVectors(UP, tmp.dir));
+          // 握柄每幀拉長到剛好接到手上，瞄遠瞄近都不會斷開或穿出去
+          handleRef.current.scale.y = reach;
+          handleRef.current.position.y = reach / 2;
+        }
       }
     }
 
@@ -632,19 +682,16 @@ export function StrikeRig({ session, barRef }: Props) {
       </mesh>
       <pointLight ref={sparkRef} color="#ffcf8a" intensity={0} distance={1.2} decay={2} />
       <pointLight ref={barLightRef} intensity={0} distance={1.9} decay={2} />
+      {/* 群組原點就是錘頭；局部 +y 是握柄方向，指回握著它的那隻手 */}
       <group ref={hammerRef} visible={false}>
-        <mesh position={[0, 0, 0]}>
-          <boxGeometry args={[0.05, 0.048, 0.105]} />
-          <meshStandardMaterial color="#6e6962" roughness={0.36} metalness={0.75} />
+        <mesh>
+          <boxGeometry args={[0.046, 0.043, 0.098]} />
+          <meshStandardMaterial color="#8a857c" roughness={0.38} metalness={0.25} />
         </mesh>
-        {/*
-          握柄只留一小截。第一人稱看自己的錘子，看得到的本來就是錘頭和
-          握在手裡的那一段；0.33 m 的柄直直往上戳，在這個鏡頭高度會變成
-          一條穿出畫面上緣的細線，看起來像破圖。
-        */}
-        <mesh position={[0, 0.095, 0]}>
-          <cylinderGeometry args={[0.012, 0.015, 0.18, 10]} />
-          <meshStandardMaterial color="#6d4f33" roughness={0.85} />
+        {/* 單位長度的柄，每幀縮放到剛好接到手，所以這裡不寫死長度 */}
+        <mesh ref={handleRef}>
+          <cylinderGeometry args={[0.0105, 0.0135, 1, 10]} />
+          <meshStandardMaterial color="#7a5a3a" roughness={0.85} />
         </mesh>
       </group>
     </>

@@ -17,7 +17,13 @@ export const FACE_W = 0.125;
 export const STATION_YAW = -0.62;
 /** 工位在場景裡的位置 */
 export const STATION_POS: [number, number, number] = [0.02, 0, -0.32];
-/** 鏡頭：站在砧前低頭看 */
-export const EYE: [number, number, number] = [0, 1.5, 0.5];
+/**
+ * 鏡頭：站在砧前低頭看。
+ *
+ * 2026-11-07 第二輪從 [0, 1.5, 0.5] 拉近到這裡。眼睛到砧面的距離
+ * 從 1.07 m 縮到 0.84 m，工件變大、俯角變陡，才有站在砧前的壓迫感。
+ * 這同時解掉錘子的問題：手離落點近了，握柄長度才會落在合理範圍。
+ */
+export const EYE: [number, number, number] = [0, 1.44, 0.22];
 /** 鏡頭看哪裡 */
-export const LOOK_AT: [number, number, number] = [0, 0.79, -0.3];
+export const LOOK_AT: [number, number, number] = [0, 0.8, -0.3];

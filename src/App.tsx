@@ -29,7 +29,7 @@ export function App() {
         camera={{ position: EYE, fov: 52, near: 0.02, far: 40 }}
         onCreated={({ gl }) => {
           gl.toneMapping = THREE.ACESFilmicToneMapping;
-          gl.toneMappingExposure = 1.1;
+          gl.toneMappingExposure = 1.22;
         }}
       >
         <Stage session={session} />

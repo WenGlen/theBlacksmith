@@ -4,7 +4,10 @@
  */
 import { ANVIL_TOP, FACE_LEN, FACE_T, FACE_W } from './layout';
 
-const IRON = { color: '#1c1a19', roughness: 0.72, metalness: 0.55 } as const;
+// metalness 壓低是有理由的：場景沒有環境貼圖，金屬的鏡面項沒有東西可反射，
+// metalness 一高整塊就黑掉。在只有爐火的房間裡，低金屬度 + 高粗糙度
+// 反而更像被煤灰裹住的熟鐵（2026-11-07 第二輪）
+const IRON = { color: '#565049', roughness: 0.74, metalness: 0.14 } as const;
 
 export function Anvil() {
   const faceY = ANVIL_TOP - FACE_T / 2;
@@ -19,7 +22,7 @@ export function Anvil() {
       {/* 砧面 */}
       <mesh position={[0, faceY, 0]} castShadow receiveShadow>
         <boxGeometry args={[FACE_W, FACE_T, FACE_LEN]} />
-        <meshStandardMaterial {...IRON} roughness={0.42} metalness={0.72} />
+        <meshStandardMaterial {...IRON} color="#665e54" roughness={0.3} metalness={0.3} />
       </mesh>
 
       {/* 砧角：從一端延伸出去的錐形 */}
@@ -49,7 +52,7 @@ export function Anvil() {
       {/* 木墩 */}
       <mesh position={[0, stumpTop / 2, 0]}>
         <cylinderGeometry args={[0.175, 0.19, stumpTop, 16]} />
-        <meshStandardMaterial color="#241a12" roughness={0.95} />
+        <meshStandardMaterial color="#4b4136" roughness={0.95} />
       </mesh>
     </group>
   );
