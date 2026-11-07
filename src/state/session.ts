@@ -53,8 +53,10 @@ export interface Session {
   travel: number;
   /** 從哪個工位出發的，走路期間鏡頭要在兩邊之間插值 */
   travelFrom: Station;
-  /** 工件推進火裡多深 0..1。只有爐前有意義 */
+  /** 火心落在料的哪個位置 0..1，0 是最前端、1 是手邊那一端 */
   insert: number;
+  /** 把整根抽離火心的程度 0..1。沒按住左鍵就自己回到 1 */
+  withdraw: number;
   /** 這一局要做什麼 */
   target: TargetProfile;
 }
@@ -75,7 +77,8 @@ export function createSession(): Session {
     station: 'anvil',
     travel: 0,
     travelFrom: 'anvil',
-    insert: 0.35,
+    insert: 0.25,
+    withdraw: 1,
     target: NAIL_BLANK,
   };
 }

@@ -50,7 +50,7 @@ export function Hud({ session }: { session: Session }) {
             {s.travelling
               ? '走過去的時候手上的料還在降溫。'
               : atForge
-                ? '按住左鍵把料壓進火心，上下移動調深淺。空白鍵送風。'
+                ? '按住左鍵把料壓進火心，左右移動調深淺。空白鍵送風。'
                 : s.hint}
           </span>
         </div>
@@ -86,7 +86,7 @@ export function Hud({ session }: { session: Session }) {
           {atForge ? (
             <>
               <div><b>左鍵按住</b> 把料壓進火心，放開就夾出來</div>
-              <div><b>按住期間上下移動</b> 調插入深淺</div>
+              <div><b>按住期間左右移動</b> 調插入深淺（往右＝推更深）</div>
               <div><b>空白鍵</b> 送風。放開風力就衰減，要一直補</div>
             </>
           ) : (

@@ -13,7 +13,6 @@ import {
   FIRE_CENTER,
   FIRE_OUTER,
   INSERT_BASE,
-  INSERT_SPAN,
   STATION_POS,
   STATION_YAW,
 } from './layout';
@@ -49,16 +48,29 @@ export function anvilPose(wp: Workpiece, outPos: THREE.Vector3, outQuat: THREE.Q
 /**
  * 爐裡的工件姿態。
  *
- * @param insert 0 是停在爐口，1 是整截推進火心
+ * **深淺與進出是兩件事**，刻意分開：
+ *   - `insert` 決定火心落在料的哪個位置，0 是最前端、1 是手邊那一端。
+ *     行程跟著料長走，所以料拉多長都掃得過整根
+ *   - `withdraw` 是把整根抽離火心，1 是完全夾出來
+ *
+ * 混成同一個數的話，insert 前半段會整段浪費掉在「料還在火圈外」，
+ * 玩家會覺得滑鼠推了半天沒反應（2026-11-07 第三輪量到的：insert 要到
+ * 0.45 才開始有熱）。
+ *
+ * @param insert 火心落在料的哪個位置 0..1
+ * @param withdraw 抽離火心的程度 0..1
  */
 export function forgePose(
   wp: Workpiece,
   insert: number,
+  withdraw: number,
   outPos: THREE.Vector3,
   outQuat: THREE.Quaternion,
 ): void {
   const tipLocalZ = wp.spineZ[SEG - 1];
-  const along = INSERT_BASE + INSERT_SPAN * Math.max(0, Math.min(1, insert));
+  const along =
+    wp.length * Math.max(0, Math.min(1, insert)) +
+    INSERT_BASE * Math.max(0, Math.min(1, withdraw));
   // 先決定末端要落在哪，再往回推出原點
   outPos.copy(fire).addScaledVector(axis, along);
   // 料是埋在炭裡的，不是架在上面。半陷進去才看得出「插進火心」

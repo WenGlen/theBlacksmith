@@ -117,7 +117,7 @@ function localHeating(insert: number, seconds: number): { tip: number; tail: num
   for (let t = 0; t < seconds; t += DT) {
     forge.update(DT);
     wp.cool(DT);
-    forgePose(wp, insert, pos, quat);
+    forgePose(wp, insert, 0, pos, quat);
     for (let i = 0; i < SEG; i++) {
       const d = fireDepthAt(wp, i, pos, quat);
       if (d > 0) wp.heatSegment(i, forge.gainAt(d, wp.temp[i], DT), DT);
@@ -127,13 +127,26 @@ function localHeating(insert: number, seconds: number): { tip: number; tail: num
 }
 
 console.log('\n局部加熱（08 第五節驗收 1）');
-const half = localHeating(0.55, 10);
-console.log(`  插到一半、燒 10 秒：推進端 ${half.tip.toFixed(2)}、中段 ${half.mid.toFixed(2)}、外端 ${half.tail.toFixed(2)}`);
-check('只有推進去的那一端熱起來', half.tip > 0.7 && half.tail < half.tip - 0.3,
-  `兩端差 ${(half.tip - half.tail).toFixed(2)}`);
-const deep = localHeating(1, 10);
-console.log(`  整根推到底、燒 10 秒：推進端 ${deep.tip.toFixed(2)}、中段 ${deep.mid.toFixed(2)}、外端 ${deep.tail.toFixed(2)}`);
-check('推到底時中段也熱得起來', deep.mid > 0.7, `中段 ${deep.mid.toFixed(2)}`);
+const shallowHeat = localHeating(0, 10);
+console.log(`  insert 0（燒最前端）、10 秒：推進端 ${shallowHeat.tip.toFixed(2)}、中段 ${shallowHeat.mid.toFixed(2)}、手邊端 ${shallowHeat.tail.toFixed(2)}`);
+check('只有推進去的那一端熱起來', shallowHeat.tip > 0.7 && shallowHeat.tail < 0.2,
+  `兩端差 ${(shallowHeat.tip - shallowHeat.tail).toFixed(2)}`);
+
+// 整根都要能被燒到，包含手邊那一端。
+// 行程寫死的時候尾巴永遠進不了火（Glen 2026-11-07 回報），這條就是在守它。
+const sweep = [
+  { name: '最前端', insert: 0, pick: (r: { tip: number }) => r.tip },
+  { name: '中段', insert: 0.5, pick: (r: { mid: number }) => r.mid },
+  { name: '手邊端', insert: 1, pick: (r: { tail: number }) => r.tail },
+];
+let allReach = true;
+for (const part of sweep) {
+  const r = localHeating(part.insert, 12);
+  const t = part.pick(r as never);
+  console.log(`  insert ${part.insert}：${part.name} 到 ${t.toFixed(2)}`);
+  if (t < 0.75) allReach = false;
+}
+check('整根每一段都燒得到鍛造溫度', allReach, '包含手邊那一端');
 
 console.log('\n一火能打幾錘（08 第五節驗收 2：要落在 8～15）');
 const fast = blowsPerHeat(0.3);

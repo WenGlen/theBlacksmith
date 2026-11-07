@@ -88,6 +88,7 @@ export function StrikeRig({ session, barRef }: Props) {
   const barLightRef = useRef<THREE.PointLight>(null);
   const ringRef = useRef<THREE.Mesh>(null);
   const handleRef = useRef<THREE.Mesh>(null);
+  const headRef = useRef<THREE.Mesh>(null);
   /** 每幀重用，避免在迴圈裡配置 */
   const tmp = useMemo(
     () => ({
@@ -96,6 +97,9 @@ export function StrikeRig({ session, barRef }: Props) {
       arm: new THREE.Vector3(),
       axis: new THREE.Vector3(),
       dir: new THREE.Vector3(),
+      side: new THREE.Vector3(),
+      fwd: new THREE.Vector3(),
+      basis: new THREE.Matrix4(),
       q: new THREE.Quaternion(),
     }),
     [],
@@ -151,7 +155,7 @@ export function StrikeRig({ session, barRef }: Props) {
     [],
   );
   /** 爐前按住左鍵時，用滑鼠上下調整插入深度 */
-  const insertDrag = useRef({ active: false, y0: 0, base: 0 });
+  const insertDrag = useRef({ active: false, x0: 0, base: 0 });
   /** 按著不放的鍵。空白鍵送風要每幀讀，不能走事件 */
   const keys = useRef({ space: false });
 
@@ -461,7 +465,7 @@ export function StrikeRig({ session, barRef }: Props) {
       }
       if (session.station === 'forge') {
         // 爐前的動詞是「持」：按住把料壓進火心，放開就夾出來
-        insertDrag.current = { active: true, y0: e.clientY, base: session.insert };
+        insertDrag.current = { active: true, x0: e.clientX, base: session.insert };
         return;
       }
       session.swing.setViewport(el.clientWidth, el.clientHeight);
@@ -487,9 +491,13 @@ export function StrikeRig({ session, barRef }: Props) {
       if (session.station === 'forge') {
         const d = insertDrag.current;
         if (d.active) {
-          // 往上推 = 推得更深。半個畫面高走完整個行程
-          const span = Math.max(1, el.clientHeight * 0.5);
-          session.insert = clamp(d.base + (d.y0 - e.clientY) / span, 0, 1);
+          // 往右推 = 推得更深。
+          //
+          // 料在畫面上是從左下伸進火裡的，所以「往右」就是順著料的方向
+          // 把它推進去，手往哪邊動、東西就往哪邊走。改之前用上下，
+          // 跟畫面上看到的方向對不起來（Glen 2026-11-07 第三輪）。
+          const span = Math.max(1, el.clientWidth * 0.45);
+          session.insert = clamp(d.base + (e.clientX - d.x0) / span, 0, 1);
         }
         return;
       }
@@ -537,7 +545,8 @@ export function StrikeRig({ session, barRef }: Props) {
           session.wp.reset();
           session.forge.reset();
           session.intervals.length = 0;
-          session.insert = 0;
+          session.insert = 0.25;
+          session.withdraw = 1;
           useHud.getState().setFlash('換一根新料', 'flag');
           break;
       }
@@ -638,16 +647,17 @@ export function StrikeRig({ session, barRef }: Props) {
     session.forge.setPumping(!travelling && here === 'forge' && keys.current.space);
     session.forge.update(dt);
 
-    // 沒按住左鍵就把料夾出火心。爐前的「持」就是這個意思
-    if (!insertDrag.current.active && session.insert > 0.001) {
-      session.insert = Math.max(0, session.insert - dt * 1.7);
-    }
+    // 沒按住左鍵就把料夾出火心。爐前的「持」就是這個意思。
+    // 夾出來的是整根（withdraw），不是把深淺歸零 ——
+    // 深淺要留著，放開再按住才會回到剛才那一段
+    const wantWithdraw = insertDrag.current.active && session.station === 'forge' ? 0 : 1;
+    session.withdraw += (wantWithdraw - session.withdraw) * Math.min(1, dt * 5.5);
 
     const bar = barRef.current;
     if (bar) {
       // 兩個工位各自算世界座標，走路期間在兩者之間插值 —— 料是被夾著走的
       anvilPose(wp, pose.pos, pose.quat);
-      forgePose(wp, session.insert, pose.posB, pose.quatB);
+      forgePose(wp, session.insert, session.withdraw, pose.posB, pose.quatB);
       const toForge = here === 'forge';
       if (travelling) {
         const a = from === 'forge' ? pose.posB : pose.pos;
@@ -794,7 +804,23 @@ export function StrikeRig({ session, barRef }: Props) {
           // 錘頭落在弧上，握柄從錘頭指回手裡
           hammerRef.current.position.copy(tmp.hand).add(tmp.arm);
           tmp.dir.copy(tmp.arm).multiplyScalar(-1).normalize();
-          hammerRef.current.quaternion.copy(tmp.q.setFromUnitVectors(UP, tmp.dir));
+
+          // 明確建一組基底，不要用 setFromUnitVectors。
+          //
+          // setFromUnitVectors(UP, dir) 只保證握柄指對方向，繞著握柄的扭轉
+          // 是任意的 —— 也就是錘面朝哪邊沒人管。那是「看起來不像在揮錘」
+          // 的主因（Glen 2026-11-07 第三輪）。
+          //   local +y = 握柄方向（錘頭指回手裡）
+          //   local +z = 揮擊平面的法線（水平，就是上面那根轉軸）
+          //   local +x = 兩者的叉積，剛好是錘頭長軸該躺的方向
+          tmp.side.copy(tmp.axis);
+          tmp.fwd.crossVectors(tmp.dir, tmp.side).normalize();
+          tmp.basis.makeBasis(tmp.fwd, tmp.dir, tmp.side);
+          hammerRef.current.quaternion.setFromRotationMatrix(tmp.basis);
+
+          // 手腕：舉起來的時候錘頭往後翻，落下時打平。
+          // 這一下不動握柄，所以柄還是接在手上
+          if (headRef.current) headRef.current.rotation.z = -lift * 0.62;
           // 握柄每幀拉長到剛好接到手上，瞄遠瞄近都不會斷開或穿出去
           handleRef.current.scale.y = reach;
           handleRef.current.position.y = reach / 2;
@@ -878,10 +904,14 @@ export function StrikeRig({ session, barRef }: Props) {
       </mesh>
       <pointLight ref={sparkRef} color="#ffcf8a" intensity={0} distance={1.2} decay={2} />
       <pointLight ref={barLightRef} intensity={0} distance={1.9} decay={2} />
-      {/* 群組原點就是錘頭；局部 +y 是握柄方向，指回握著它的那隻手 */}
+      {/*
+        群組原點就是落點；局部 +y 是握柄方向（指回手），
+        +x 是錘頭長軸躺的方向，+z 是揮擊平面的法線。
+      */}
       <group ref={hammerRef} visible={false}>
-        <mesh>
-          <boxGeometry args={[0.046, 0.043, 0.098]} />
+        {/* 錘頭長軸沿 x，整塊往握柄那邊抬一點，打擊面才落在原點上 */}
+        <mesh ref={headRef} position={[0, 0.032, 0]}>
+          <boxGeometry args={[0.1, 0.048, 0.044]} />
           <meshStandardMaterial color="#8a857c" roughness={0.38} metalness={0.25} />
         </mesh>
         {/* 單位長度的柄，每幀縮放到剛好接到手，所以這裡不寫死長度 */}

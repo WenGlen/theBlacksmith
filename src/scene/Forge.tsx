@@ -37,12 +37,12 @@ export function Forge({ forge }: { forge: ForgeModel }) {
   return (
     <group position={[-1.32, 0, -1.25]} rotation={[0, 0.55, 0]}>
       <mesh position={[0, 0.38, 0]}>
-        <boxGeometry args={[0.78, 0.76, 0.66]} />
+        <boxGeometry args={[1.02, 0.76, 0.8]} />
         <meshStandardMaterial color="#241d19" roughness={0.95} />
       </mesh>
       {/* 炭床 */}
       <mesh ref={coalRef} position={[0, 0.775, 0]}>
-        <boxGeometry args={[0.44, 0.05, 0.36]} />
+        <boxGeometry args={[0.62, 0.05, 0.46]} />
         <meshStandardMaterial
           color="#5a1c06"
           emissive="#ff5c14"
