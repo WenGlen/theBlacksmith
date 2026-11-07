@@ -62,6 +62,9 @@ const MAX_SWING = 0.4;
 /** 錘頭停在鐵面上方這麼高，免得插進工件裡 */
 const HEAD_CLEAR = 0.026;
 
+/** 落錘動畫走到這個進度就是錘頭碰到鐵的那一刻 */
+const CONTACT_T = 0.34;
+
 export function StrikeRig({ session, barRef }: Props) {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const gl = useThree((s) => s.gl);
@@ -94,7 +97,16 @@ export function StrikeRig({ session, barRef }: Props) {
   const aimAtRef = useRef<(x: number, y: number) => void>(() => {});
   const look = useRef({ yaw: 0, pitch: 0, dragging: false, lx: 0, ly: 0 });
   const shake = useRef(0);
-  const hammerAnim = useRef({ t: 1, lift: 0 });
+  /** 落錘動畫。t 是 0..1 的進度，x/y/z 是這一錘要打的世界座標 */
+  const hammerAnim = useRef({ t: 1, lift: 0, x: 0, y: 0, z: 0 });
+  /**
+   * 已經結算、但錘子還沒落到的那一錘。
+   *
+   * 放開的瞬間狀態機就算完了，可是錘子還在空中。變形、震動、火花
+   * 全部延到錘頭真的碰到鐵的那一幀才發生，不然畫面會先抖、鐵先扁，
+   * 錘子才慢慢落下來（Glen 2026-11-07：往下揮的動作不見了）。
+   */
+  const pending = useRef<(() => void) | null>(null);
   const ringAnim = useRef(1);
   const lastSeg = useRef(Math.floor(SEG / 2));
   const syncAcc = useRef(0);
@@ -217,13 +229,23 @@ export function StrikeRig({ session, barRef }: Props) {
     };
   });
 
+  /** 把還沒落地的那一錘立刻結算掉。連打時下一錘可能來得比落地還早 */
+  const flushPending = (): void => {
+    const f = pending.current;
+    pending.current = null;
+    f?.();
+  };
+
   /* 揮錘狀態機的事件接到世界上 */
   useEffect(() => {
     const { wp, swing, scatter } = session;
     const hud = useHud.getState();
 
     swing.handlers = {
-      onArm: (p) => refreshAim(p.x, p.y),
+      onArm: (p) => {
+        flushPending();
+        refreshAim(p.x, p.y);
+      },
 
       onState: (s, hint) => useHud.getState().patch({ swingState: s, hint }),
 
@@ -254,11 +276,24 @@ export function StrikeRig({ session, barRef }: Props) {
         useHud.getState().bumpScatter();
 
         const land = aimAt(hit.landing.x, hit.landing.y);
-        shake.current = Math.max(shake.current, hit.force);
-        hammerAnim.current = { t: 0, lift: 0.1 + 0.9 * swing.windupRatio };
+
+        // 上一錘要是還在空中，先讓它落地，免得兩錘的效果疊在一起
+        flushPending();
+
+        const aimNow = session.aim;
+        hammerAnim.current = {
+          t: 0,
+          lift: 0.1 + 0.9 * swing.windupRatio,
+          x: land?.point.x ?? aimNow?.x ?? 0,
+          y: land?.point.y ?? aimNow?.y ?? ANVIL_TOP,
+          z: land?.point.z ?? aimNow?.z ?? 0,
+        };
 
         if (!land || !bar) {
-          useHud.getState().setFlash('打在砧面上', 'bad');
+          pending.current = () => {
+            shake.current = Math.max(shake.current, hit.force * 0.55);
+            useHud.getState().setFlash('打在砧面上', 'bad');
+          };
           return;
         }
 
@@ -276,40 +311,44 @@ export function StrikeRig({ session, barRef }: Props) {
         const tiltAxial = hit.tilt * rLocal.z;
         const tiltCirc = hit.tilt * rLocal.dot(tangent);
 
-        const res = wp.strike({
-          seg: land.seg,
-          angle: land.angle,
-          force: hit.force,
-          tiltAxial,
-          tiltCirc,
-        });
-        lastSeg.current = land.seg;
-
-        if (sparkRef.current) {
-          sparkRef.current.position.copy(land.point);
-          sparkRef.current.intensity = 2.2 + hit.force * 9;
-        }
-        if (ringRef.current) {
-          ringRef.current.position.copy(land.point).addScaledVector(land.normal, 0.0015);
-          ringRef.current.quaternion.setFromUnitVectors(PLANE_FWD, land.normal);
-          ringAnim.current = 0;
-        }
-
         if (hit.intervalMs > 0 && hit.intervalMs < 4000) {
           session.intervals.push(hit.intervalMs);
           if (session.intervals.length > 40) session.intervals.shift();
         }
 
-        const f = useHud.getState().setFlash;
-        if (res.cold) f('冷作裂紋', 'bad');
-        else if (res.slipped) f('錘面打滑', 'warn');
-        else if (hit.force > 0.85) f('重錘', 'good');
+        // 底下這些等錘頭真的碰到鐵才發生
+        pending.current = () => {
+          const res = wp.strike({
+            seg: land.seg,
+            angle: land.angle,
+            force: hit.force,
+            tiltAxial,
+            tiltCirc,
+          });
+          lastSeg.current = land.seg;
+          shake.current = Math.max(shake.current, hit.force);
 
-        useHud.getState().patch({
-          lastForce: hit.force,
-          lastTilt: hit.tilt,
-          rhythmMs: hit.intervalMs,
-        });
+          if (sparkRef.current) {
+            sparkRef.current.position.copy(land.point);
+            sparkRef.current.intensity = 2.2 + hit.force * 9;
+          }
+          if (ringRef.current) {
+            ringRef.current.position.copy(land.point).addScaledVector(land.normal, 0.0015);
+            ringRef.current.quaternion.setFromUnitVectors(PLANE_FWD, land.normal);
+            ringAnim.current = 0;
+          }
+
+          const f = useHud.getState().setFlash;
+          if (res.cold) f('冷作裂紋', 'bad');
+          else if (res.slipped) f('錘面打滑', 'warn');
+          else if (hit.force > 0.85) f('重錘', 'good');
+
+          useHud.getState().patch({
+            lastForce: hit.force,
+            lastTilt: hit.tilt,
+            rhythmMs: hit.intervalMs,
+          });
+        };
       },
     };
     void hud;
@@ -577,24 +616,43 @@ export function StrikeRig({ session, barRef }: Props) {
     if (hammerRef.current && handleRef.current) {
       const anim = hammerAnim.current;
       let lift = 0;
+      let tx = 0;
+      let ty = 0;
+      let tz = 0;
       let show = false;
+
       if (anim.t < 1) {
-        // 前兩成砸下去，剩下的彈回來一點再收。砸的那一段要夠短才有重量感
-        anim.t = Math.min(1, anim.t + dt / 0.26);
-        const k = anim.t < 0.2 ? 1 - anim.t / 0.2 : ((anim.t - 0.2) / 0.8) * 0.7;
+        // 落錘。整段 0.4 秒，前 34% 是砸下去（約 136 ms），剩下是反彈收回。
+        //
+        // 這一段**不能綁 session.aim**：放開的那一刻 aim 就被清成 null，
+        // 綁著的話錘子會在落下之前就消失，玩家永遠看不到往下揮那一下
+        // （Glen 2026-11-07 回報的就是這個）。所以落點在結算時就存進 anim。
+        const prev = anim.t;
+        anim.t = Math.min(1, anim.t + dt / 0.4);
+        if (prev < CONTACT_T && anim.t >= CONTACT_T) flushPending();
+        const k =
+          anim.t < CONTACT_T
+            ? 1 - Math.pow(anim.t / CONTACT_T, 1.8)
+            : 0.45 * Math.sin(((anim.t - CONTACT_T) / (1 - CONTACT_T)) * Math.PI);
         lift = anim.lift * k;
+        tx = anim.x;
+        ty = anim.y;
+        tz = anim.z;
         show = true;
-      } else if (armed) {
+      } else if (armed && aim) {
         lift = 0.1 + 0.9 * swing.windupRatio;
+        tx = aim.x;
+        ty = aim.y;
+        tz = aim.z;
         show = true;
       }
-      hammerRef.current.visible = show && aim !== null;
+      hammerRef.current.visible = show;
 
-      if (aim && show) {
+      if (show) {
         // 手固定在鏡頭附近。camera 的位置與朝向這一幀上面已經設好了
         camera.updateMatrixWorld();
         tmp.hand.copy(HAND_LOCAL).applyMatrix4(camera.matrixWorld);
-        tmp.target.set(aim.x, aim.y + HEAD_CLEAR, aim.z);
+        tmp.target.set(tx, ty + HEAD_CLEAR, tz);
 
         // 手指向落點的向量，就是放下時的錘子。後擺就是把它繞著手往上轉。
         tmp.arm.subVectors(tmp.target, tmp.hand);
