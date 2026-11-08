@@ -56,7 +56,8 @@ export interface HudState {
   scatterTick: number;
   /* 使用者設定 */
   mode: LandingMode;
-  skillR: number;
+  /** 技藝等級 0..1。判定寬度全部由它推出來（game/skill/skill.ts） */
+  skillLevel: number;
   recallEnabled: boolean;
   usePeakWindow: boolean;
   dim: boolean;
@@ -100,7 +101,7 @@ export const useHud = create<HudState>((set) => ({
   flash: null,
   scatterTick: 0,
   mode: 'release',
-  skillR: 0.012,
+  skillLevel: 0,
   recallEnabled: true,
   usePeakWindow: true,
   dim: false,

@@ -38,7 +38,13 @@ export const TUNING = {
   speedMaxR: 3.4,
   /** 力道取樣窗：放開前這段時間內的峰值速度 */
   peakWindowMs: 140,
-  /** 收手判定：放開時游標離落點多近算把錘子放下 */
+  /**
+   * 已停用。
+   *
+   * 收手曾經是「放開時游標離按下點多近」，2026-11-08 改成「還沒甩回來就
+   * 放開」之後這個門檻沒有人讀了。留著是因為 06 文件第三節的分歧二還在
+   * 比較兩種做法，把數字一起刪掉會看不懂當初比的是什麼。
+   */
   recallR: 0.045,
   /** 傾角的滿刻度位移 */
   tiltSpanR: 0.26,
@@ -93,8 +99,8 @@ interface Sample {
 
 const HINTS: Record<SwingState, string> = {
   idle: '按住左鍵把錘子舉起來。',
-  armed: '往左或往右甩蓄力。甩得越遠，錘子舉得越高，力道上限也越高。',
-  windup: '反向甩回去出力，游標移到想打的那一段再放開。甩回原點附近停住放開就是收手。',
+  armed: '往左或往右甩蓄力。甩得越遠，錘子舉得越高，力道上限也越高。放開就是收手。',
+  windup: '反向甩回去出力，游標移到想打的那一段再放開。現在放開不算一錘。',
   swing: '放開落錘，打在游標現在指的位置。按住不放持續來回就是連打。',
 };
 
@@ -137,6 +143,15 @@ export class SwingMachine {
   mode: LandingMode = 'release';
   /** 技藝決定的基礎隨機偏移半徑，單位是畫面寬度的比例 */
   skillRadiusR = 0.012;
+  /**
+   * 落點往按下點收斂的比例 0..1，由 `game/skill/skill.ts` 的等級推出來。
+   *
+   * 落點原本是放開時的游標位置 1:1 換算到棒子上。棒子在畫面上只佔螢幕寬
+   * 三成，蓄力卻要甩出 46%，所以甩回來時幾個像素的誤差就是好幾段的落差
+   * （Glen 2026-11-08：判定範圍還是太小）。往按下點收斂等於把整段甩回的
+   * 行程壓縮到意圖點附近，誤差跟著一起被壓縮。
+   */
+  assist = 0;
   /** 要不要啟用收手判定 */
   recallEnabled = true;
   /** 力道要不要取窗內峰值（關掉就取放開瞬間的速度，用來對照 06 的分歧二） */
@@ -186,6 +201,22 @@ export class SwingMachine {
       (this.jitter / this.vh) * TUNING.jitterToOffsetR +
       overshoot * TUNING.overshootToOffsetR
     );
+  }
+
+  /**
+   * 把游標位置換算成「現在放開會打到哪」。
+   *
+   * 呼叫端的落點預覽一定要走這裡，不然預覽畫的是游標、結算用的是收斂後的
+   * 位置，兩者對不起來，玩家永遠學不會這個手勢。
+   */
+  assistedPoint(x: number, y: number): { x: number; y: number } {
+    if (this.state === 'idle') return { x, y };
+    if (this.mode !== 'release') return { x: this.anchor.x, y: this.anchor.y };
+    const k = 1 - Math.max(0, Math.min(1, this.assist));
+    return {
+      x: this.anchor.x + (x - this.anchor.x) * k,
+      y: this.anchor.y + (y - this.anchor.y) * k,
+    };
   }
 
   private setState(s: SwingState): void {
@@ -302,13 +333,16 @@ export class SwingMachine {
     if (!this.pressing) return;
     this.pressing = false;
     if (this.state === 'swing') {
-      const backHome = Math.abs(x - this.anchor.x) < TUNING.recallR * this.vw;
-      const slow = this.currentSpeed < TUNING.deadzoneR * this.vw * 4;
-      if (this.recallEnabled && backHome && slow) {
-        this.handlers.onRecall?.();
-      } else {
-        this.registerHit(x, y, now, false);
-      }
+      // 甩回來了就一定打下去。
+      //
+      // 以前這裡還有一條「放開時回到按下點附近且慢下來＝收手」。
+      // 落點改由放開位置決定、按下點又等於想打的點之後，那條規則把
+      // 「仔細瞄準到位」和「取消這一錘」判成同一個動作 —— 瞄得越準越
+      // 打不出去（Glen 2026-11-08：拿不定主意判定是按下還是放開）。
+      this.registerHit(x, y, now, false);
+    } else if (this.state === 'armed' || this.state === 'windup') {
+      // 舉起來又放下：還沒反向甩回來就放開，這一錘不算。
+      if (this.recallEnabled) this.handlers.onRecall?.();
     }
     this.windupPeak = 0;
     this.peakSpeed = 0;
@@ -344,8 +378,7 @@ export class SwingMachine {
       Math.min(1, (x - this.swingStartX) / (w * TUNING.tiltSpanR)),
     );
 
-    const base =
-      this.mode === 'release' ? { x, y } : { x: this.anchor.x, y: this.anchor.y };
+    const base = this.assistedPoint(x, y);
 
     let offR = this.skillRadiusR;
     if (this.mode === 'hybrid') {

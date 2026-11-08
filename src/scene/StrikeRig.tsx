@@ -16,6 +16,7 @@ import * as THREE from 'three';
 import { TapHoldAxis } from '../game/input/tapHold';
 import { heatColor, heatLabel } from '../game/thermal/heat';
 import { fitProfile } from '../game/target/profile';
+import { aimSkill } from '../game/skill/skill';
 import { RADIAL, SEG } from '../game/workpiece/workpiece';
 import { useHud } from '../state/hud';
 import type { Session } from '../state/session';
@@ -47,8 +48,6 @@ const UP = new THREE.Vector3(0, 1, 0);
 const LOCAL_X = new THREE.Vector3(1, 0, 0);
 const PLANE_FWD = new THREE.Vector3(0, 0, 1);
 
-/** 游標可以超出工件兩端多少（佔全長的比例）還算瞄在上面 */
-const END_SLACK = 0.04;
 
 /**
  * 握錘那隻手在鏡頭座標裡的位置（右、下、前）。
@@ -82,6 +81,10 @@ export function StrikeRig({ session, barRef }: Props) {
   const size = useThree((s) => s.size);
 
   const aimRef = useRef<THREE.Mesh>(null);
+  /** 按下那一刻釘在料上的意圖標記 */
+  const intentRef = useRef<THREE.Group>(null);
+  /** 從意圖標記拉到現在落點的那一條線 */
+  const linkRef = useRef<THREE.Mesh>(null);
   const jitterRef = useRef<THREE.Mesh>(null);
   const hammerRef = useRef<THREE.Group>(null);
   const sparkRef = useRef<THREE.PointLight>(null);
@@ -101,6 +104,10 @@ export function StrikeRig({ session, barRef }: Props) {
       fwd: new THREE.Vector3(),
       basis: new THREE.Matrix4(),
       q: new THREE.Quaternion(),
+      pA: new THREE.Vector3(),
+      pB: new THREE.Vector3(),
+      nrm: new THREE.Vector3(),
+      link: new THREE.Vector3(),
     }),
     [],
   );
@@ -216,7 +223,7 @@ export function StrikeRig({ session, barRef }: Props) {
     if (Math.abs(denom) < 1e-6) return null; // 視線與棒子平行，沒有唯一解
     const sAlong = (axis.dot(w0) - bd * d.dot(w0)) / denom;
 
-    const slack = span * END_SLACK;
+    const slack = span * aimSkill().endSlack;
     if (sAlong < -slack || sAlong > span + slack) return null;
     const seg = wp.segmentAt(z0 + sAlong);
 
@@ -250,7 +257,10 @@ export function StrikeRig({ session, barRef }: Props) {
       session.aimOff = false;
       return;
     }
-    const hit = aimAt(clientX, clientY);
+    // 落點不是游標本身，是游標往按下點收斂之後的位置。預覽與結算一定要
+    // 走同一個換算，不然畫的是游標、打的是別處（game/skill/skill.ts）。
+    const land = session.swing.assistedPoint(clientX, clientY);
+    const hit = aimAt(land.x, land.y);
     if (hit) {
       session.aim = {
         x: hit.point.x, y: hit.point.y, z: hit.point.z,
@@ -297,7 +307,13 @@ export function StrikeRig({ session, barRef }: Props) {
     swing.handlers = {
       onArm: (p) => {
         flushPending();
+        // 每次按下先把判定寬度同步成現在的等級，之後接等級表就不用再改這裡
+        const sk = aimSkill();
+        swing.assist = sk.assist;
+        swing.skillRadiusR = sk.scatterR;
         refreshAim(p.x, p.y);
+        // 按下的那一點就是「我想打這裡」，整段按住期間釘在料上不動
+        session.intent = session.aim ? { ...session.aim } : null;
       },
 
       onState: (s, hint) => useHud.getState().patch({ swingState: s, hint }),
@@ -305,6 +321,7 @@ export function StrikeRig({ session, barRef }: Props) {
       onRecall: () => {
         session.recalls += 1;
         session.aim = null;
+        session.intent = null;
         session.aimOff = false;
         hammerAnim.current.t = 1;
         useHud.getState().patch({ recalls: session.recalls });
@@ -317,10 +334,11 @@ export function StrikeRig({ session, barRef }: Props) {
 
         // 散布統計：量「打到的地方離想打的地方多遠」。
         //
-        // 想打的地方隨落點取樣方式而不同：取放開座標時是放開的那一點，
-        // 其餘是按下時鎖的那一點。固定拿 anchor 當基準的話，release 模式下
-        // 量到的會是「放開離按下多遠」—— 那是手勢本身的幅度，不是失準。
-        const intended = mode === 'release' ? hit.release : hit.anchor;
+        // 按下的那一點就是想打的點（Glen 2026-11-08），所以基準一律是
+        // anchor。2026-11-07 那版拿 release 當基準，因為當時落點是放開點
+        // 1:1 換算，拿 anchor 量到的會是手勢幅度不是失準；現在落點已經
+        // 往 anchor 收斂過，anchor 到 landing 的距離才是真正吃掉的誤差。
+        const intended = hit.anchor;
         scatter.push(mode, {
           dx: (hit.landing.x - intended.x) / size.width,
           dy: (hit.landing.y - intended.y) / size.width,
@@ -516,6 +534,7 @@ export function StrikeRig({ session, barRef }: Props) {
       }
       session.swing.pointerUp(e.clientX, e.clientY, now());
       session.aim = null;
+      session.intent = null;
       session.aimOff = false;
     };
 
@@ -753,6 +772,42 @@ export function StrikeRig({ session, barRef }: Props) {
       }
     }
 
+    /*
+      意圖標記與連接線。
+
+      按下的那一點就是「我想打這裡」，整段按住期間釘在料上不動；
+      線從它拉到現在的落點，線有多長就是現在放開會偏多少。
+      甩回來的過程中把線收短再放開，就打在想打的地方 —— 這是把
+      「怎樣的角度與位置可以打在想要的點上」直接畫出來（Glen 2026-11-08）。
+    */
+    const intent = session.intent;
+    if (intentRef.current && linkRef.current) {
+      const showIntent = armed && intent !== null;
+      intentRef.current.visible = showIntent;
+      if (showIntent && intent) {
+        tmp.pA.set(intent.x, intent.y, intent.z);
+        tmp.nrm.set(intent.nx, intent.ny, intent.nz);
+        intentRef.current.position.copy(tmp.pA).addScaledVector(tmp.nrm, 0.0016);
+        intentRef.current.quaternion.setFromUnitVectors(PLANE_FWD, tmp.nrm);
+      }
+      // 線：兩端都有效而且拉得開才畫，不然按下那一瞬間會有一個零長度的點
+      const showLink = showIntent && intent !== null && aim !== null;
+      let len = 0;
+      if (showLink && intent && aim) {
+        tmp.pB.set(aim.x, aim.y, aim.z);
+        tmp.link.subVectors(tmp.pB, tmp.pA);
+        len = tmp.link.length();
+      }
+      linkRef.current.visible = showLink && len > 0.004;
+      if (linkRef.current.visible) {
+        linkRef.current.position.copy(tmp.pA).addScaledVector(tmp.link, 0.5);
+        linkRef.current.position.addScaledVector(tmp.nrm, 0.0014);
+        tmp.link.divideScalar(len);
+        linkRef.current.quaternion.setFromUnitVectors(UP, tmp.link);
+        linkRef.current.scale.set(1, len, 1);
+      }
+    }
+
     /* 錘子：握在手裡，繞著手畫弧 */
     if (hammerRef.current && handleRef.current) {
       const anim = hammerAnim.current;
@@ -888,9 +943,32 @@ export function StrikeRig({ session, barRef }: Props) {
 
   return (
     <>
+      {/* 落點環。2.2 mm 的環在畫面上只有 3 px，壓在白熱的料上看不見，放大到 9 px */}
       <mesh ref={aimRef} visible={false}>
-        <ringGeometry args={[0.0022, 0.0034, 20]} />
+        <ringGeometry args={[0.0038, 0.0056, 20]} />
         <meshBasicMaterial color="#f6f1e6" transparent opacity={0.95} depthTest={false} />
+      </mesh>
+      {/*
+        意圖標記：按下的那一點。十字，跟圓形的落點環一眼分得開。
+
+        尺寸是量出來的，不是估的：料全長 420 mm 在畫面上約 346 px，
+        所以 1 mm 差不多 0.8 px。第一版畫 10.5 mm 的十字＝8 px，
+        壓在白熱的料上根本看不見。26 mm 才有 21 px，手臂 3 mm 才有 2 px 寬。
+      */}
+      <group ref={intentRef} visible={false}>
+        <mesh rotation={[0, 0, Math.PI / 4]}>
+          <boxGeometry args={[0.026, 0.003, 0.0006]} />
+          <meshBasicMaterial color="#1d7fd6" transparent opacity={1} depthTest={false} />
+        </mesh>
+        <mesh rotation={[0, 0, -Math.PI / 4]}>
+          <boxGeometry args={[0.026, 0.003, 0.0006]} />
+          <meshBasicMaterial color="#1d7fd6" transparent opacity={1} depthTest={false} />
+        </mesh>
+      </group>
+      {/* 連接線：單位長度，每幀縮放到剛好接上現在的落點 */}
+      <mesh ref={linkRef} visible={false}>
+        <cylinderGeometry args={[0.0014, 0.0014, 1, 6]} />
+        <meshBasicMaterial color="#1d7fd6" transparent opacity={0.85} depthTest={false} />
       </mesh>
       <mesh ref={jitterRef} visible={false}>
         <ringGeometry args={[0.92, 1, 40]} />

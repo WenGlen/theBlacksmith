@@ -5,6 +5,7 @@
  * `02_操作轉化設計.md` 原則 3 把這些數字全部拿掉，只留顏色。
  */
 import { useEffect, useState } from 'react';
+import { SKILL, aimSkill } from '../game/skill/skill';
 import { heatColor, scorchLabel } from '../game/thermal/heat';
 import type { LandingMode } from '../game/input/swing';
 import { useHud } from '../state/hud';
@@ -119,22 +120,34 @@ export function Hud({ session }: { session: Session }) {
             </label>
           ))}
         </div>
+        {/*
+          技藝等級。拉這一條就看得到「越練越寬」長什麼樣子。
+
+          以前這一條直接寫 swing.skillRadiusR，2026-11-08 判定寬度改由
+          等級推出來（game/skill/skill.ts）之後，每次按下都會被 onArm
+          覆寫回去 —— 所以這裡改成寫等級，底下三個數字是算出來給人看的。
+        */}
         <div className="group">
           <div className="label">
-            技藝（基礎偏移半徑 {(s.skillR * 100).toFixed(1)}%）
+            技藝等級 {(s.skillLevel * 100).toFixed(0)}%
           </div>
           <input
             type="range"
             min={0}
-            max={0.035}
-            step={0.001}
-            value={s.skillR}
+            max={1}
+            step={0.05}
+            value={s.skillLevel}
             onChange={(e) => {
               const v = Number(e.target.value);
-              s.patch({ skillR: v });
-              session.swing.skillRadiusR = v;
+              s.patch({ skillLevel: v });
+              SKILL.level = v;
             }}
           />
+          <div className="label">
+            誤差原諒 {(aimSkill(s.skillLevel).assist * 100).toFixed(0)}%、
+            散布 {(aimSkill(s.skillLevel).scatterR * 100).toFixed(1)}%、
+            兩端寬限 {(aimSkill(s.skillLevel).endSlack * 100).toFixed(0)}%
+          </div>
         </div>
         <div className="group">
           <label className="opt">
@@ -146,7 +159,7 @@ export function Hud({ session }: { session: Session }) {
                 session.swing.recallEnabled = e.target.checked;
               }}
             />
-            收手判定（06 分歧二）
+            收手判定（還沒甩回來就放開＝不算一錘）
           </label>
           <label className="opt">
             <input

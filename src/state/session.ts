@@ -32,6 +32,13 @@ export interface Session {
   scatter: ScatterLog;
   /** 目前的落點預覽，沒按下時是 null。按住期間會停在最後一個有效位置 */
   aim: Aim | null;
+  /**
+   * 按下那一刻釘在料上的意圖標記，沒按住時是 null。
+   *
+   * 按下的那一點就是「我想打這裡」。它跟 `aim` 的距離就是現在放開會偏多少，
+   * 畫面上用一條線連起來（Glen 2026-11-08）。
+   */
+  intent: Aim | null;
   /** 游標現在指到棒子外面了：aim 還留著，但這時放開會打空 */
   aimOff: boolean;
   /** 遮光中（按住 Tab） */
@@ -68,6 +75,7 @@ export function createSession(): Session {
     swing: new SwingMachine(),
     scatter: new ScatterLog(),
     aim: null,
+    intent: null,
     aimOff: false,
     dim: false,
     recalls: 0,

@@ -148,16 +148,18 @@ for (const part of sweep) {
 }
 check('整根每一段都燒得到鍛造溫度', allReach, '包含手邊那一端');
 
-console.log('\n一火能打幾錘（08 第五節驗收 2：要落在 8～15）');
+// 2026-11-08 把區間從 8～15 拉到 16～32：Glen 實測一火能打的錘數偏少，
+// 要求至少兩倍（08 第十二節）。倍率在 workpiece.ts 的 HEAT_HOLD。
+console.log('\n一火能打幾錘（08 第五節驗收 2：要落在 16～32）');
 const fast = blowsPerHeat(0.3);
 const slow = blowsPerHeat(0.7);
 console.log(`  連打節奏 0.3 s：${fast} 錘`);
 console.log(`  單擊節奏 0.7 s：${slow} 錘`);
-check('一火的錘數在合理區間', slow >= 8 && fast <= 20, `${slow}～${fast}`);
+check('一火的錘數在合理區間', slow >= 16 && fast <= 32, `${slow}～${fast}`);
 
 console.log('\n放著不打能撐多久');
 const idle = idleSeconds();
-check('一火的總時間有壓力但不急躁', idle > 12 && idle < 45, `${idle.toFixed(1)} 秒`);
+check('一火的總時間有壓力但不急躁', idle > 40 && idle < 90, `${idle.toFixed(1)} 秒`);
 
 console.log('\n薄處先冷（08 第五節驗收 3）');
 const tv = thinVsThick();
